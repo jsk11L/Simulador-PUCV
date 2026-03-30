@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,214 +16,345 @@ import (
 )
 
 // ==========================================
-// 1. DEFINICIÓN DE MODELOS (V2 - SaaS)
+// 1. MODELOS DE BASE DE DATOS Y PAYLOADS
 // ==========================================
 
+// Payloads que envía React
+type AsignaturaPayload struct {
+	ID        string   `json:"id"`
+	Cred      int      `json:"cred"`
+	Rep       float64  `json:"rep"`
+	Reqs      []string `json:"reqs"`
+	Semestre  int      `json:"semestre"`
+	Dictacion string   `json:"dictacion"` // "anual" o "semestral"
+}
+
+type VariablesPayload struct {
+	NE       int     `json:"ne"`
+	NCSmax   int     `json:"ncsmax"`
+	TAmin    float64 `json:"tamin"`
+	NapTAmin int     `json:"naptamin"`
+	Opor     int     `json:"opor"`
+}
+
+type ModeloPayload struct {
+	VMap1234  float64 `json:"vmap1234"`
+	Delta1234 float64 `json:"delta1234"`
+	VMap5678  float64 `json:"vmap5678"`
+	Delta5678 float64 `json:"delta5678"`
+	VMapM     float64 `json:"vmapm"`
+	DeltaM    float64 `json:"deltam"`
+}
+
+type SimularRequest struct {
+	Asignaturas []AsignaturaPayload `json:"asignaturas"`
+	Variables   VariablesPayload    `json:"variables"`
+	Modelo      ModeloPayload       `json:"modelo"`
+}
+
+// Estructuras internas para la simulación
+type EstadoAlumno int
+
+const (
+	Activo EstadoAlumno = iota
+	EliminadoTAmin
+	EliminadoOpor
+	Titulado
+)
+
+type HistorialAsignatura struct {
+	Sigla       string
+	Aprobado    bool
+	Oportunidad int
+}
+
+// Modelos GORM (BD)
 type Usuario struct {
 	ID           string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	Email        string `gorm:"uniqueIndex;not null"`
 	PasswordHash string `gorm:"not null"`
-	IsApproved   bool   `gorm:"default:false"` // <-- NUEVO: Requiere aprobación
+	IsApproved   bool   `gorm:"default:false"`
 	CreatedAt    time.Time
-}
-
-type Escenario struct {
-	ID          string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	UsuarioID   string `gorm:"type:uuid;not null"`
-	Nombre      string `gorm:"not null"`
-	Descripcion string
-	TAmin       float64
-	NCSmax      int
-	Opor        int
-	Iteraciones int
-	CreatedAt   time.Time
-}
-
-type Asignatura struct {
-	ID               string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	UsuarioID        string `gorm:"type:uuid;not null"`
-	EscenarioID      string `gorm:"type:uuid;not null"`
-	Semestre         int
-	Sigla            string `gorm:"not null"`
-	Creditos         int
-	TasaReprobacion  float64
-	NumPrerequisitos int
-}
-
-type Prerrequisito struct {
-	ID           string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	AsignaturaID string `gorm:"type:uuid;not null"`
-	ReqSigla     string `gorm:"not null"`
-	UsuarioID    string `gorm:"type:uuid;not null"`
-}
-
-type AlumnoBase struct {
-	ID                string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	UsuarioID         string `gorm:"type:uuid;not null"`
-	EscenarioID       string `gorm:"type:uuid;not null"`
-	Identificador     string
-	PerfilEstocastico string
 }
 
 var DB *gorm.DB
 var jwtSecret = []byte("simula_pucv_super_secreta_2026")
 
 // ==========================================
-// 2. CONTROLADORES DE AUTENTICACIÓN
+// 2. MOTOR DE MONTECARLO (GOLANG CONCURRENTE)
 // ==========================================
 
-type RegisterInput struct {
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"required"`
+func ejecutarMontecarlo(req SimularRequest) map[string]interface{} {
+	// Preparar mapas de la malla para acceso ultra rápido O(1)
+	mallaMap := make(map[string]AsignaturaPayload)
+	for _, asig := range req.Asignaturas {
+		mallaMap[asig.ID] = asig
+	}
+
+	var wg sync.WaitGroup
+	resultadosChan := make(chan int, req.Variables.NE) // Canal para recolectar semestres que tomó egresar
+	eliminadosTAChan := make(chan int, req.Variables.NE)
+	eliminadosOporChan := make(chan int, req.Variables.NE)
+
+	// Simulación paralela de alumnos
+	for i := 0; i < req.Variables.NE; i++ {
+		wg.Add(1)
+		go func(alumnoID int) {
+			defer wg.Done()
+
+			estado := Activo
+			semestreActual := 1
+			creditosAprobadosTotales := 0
+			historial := make(map[string]*HistorialAsignatura)
+
+			for estado == Activo && semestreActual <= 30 { // Límite de seguridad: 30 semestres
+				creditosInscritos := 0
+
+				// 1. Buscar qué asignaturas puede tomar este semestre
+				var asignaturasTomadas []string
+
+				for _, asig := range req.Asignaturas {
+					// Ya la aprobó?
+					if h, ok := historial[asig.ID]; ok && h.Aprobado {
+						continue
+					}
+
+					// Cumple dictación? (MatLab ProgramacionB)
+					if asig.Dictacion == "semestral" {
+						isImpar := asig.Semestre%2 != 0
+						currentIsImpar := semestreActual%2 != 0
+						if isImpar != currentIsImpar {
+							continue // No se dicta este semestre
+						}
+					}
+
+					// Cumple prerrequisitos?
+					cumpleReqs := true
+					for _, reqSigla := range asig.Reqs {
+						if reqSigla == "" {
+							continue
+						}
+						if reqHist, ok := historial[reqSigla]; !ok || !reqHist.Aprobado {
+							cumpleReqs = false
+							break
+						}
+					}
+
+					if !cumpleReqs {
+						continue
+					}
+
+					// Cumple tope de créditos NCSmax?
+					if creditosInscritos+asig.Cred <= req.Variables.NCSmax {
+						asignaturasTomadas = append(asignaturasTomadas, asig.ID)
+						creditosInscritos += asig.Cred
+					}
+				}
+
+				// Si no tomó nada y ya aprobó todo, se titula
+				if len(asignaturasTomadas) == 0 {
+					todasAprobadas := true
+					for _, a := range req.Asignaturas {
+						if h, ok := historial[a.ID]; !ok || !h.Aprobado {
+							todasAprobadas = false
+							break
+						}
+					}
+					if todasAprobadas {
+						estado = Titulado
+						resultadosChan <- semestreActual - 1
+						break
+					}
+				}
+
+				// 2. Simular aprobación estocástica
+				for _, sigla := range asignaturasTomadas {
+					asig := mallaMap[sigla]
+
+					// Determinar VMap y Delta según el semestre oficial del ramo
+					vmap, delta := req.Modelo.VMapM, req.Modelo.DeltaM
+					if asig.Semestre <= 4 {
+						vmap, delta = req.Modelo.VMap1234, req.Modelo.Delta1234
+					} else if asig.Semestre <= 8 {
+						vmap, delta = req.Modelo.VMap5678, req.Modelo.Delta5678
+					}
+
+					// Modelo Normal: Genera un valor alrededor del Valor Medio
+					// Si es superior a la Tasa Histórica de Reprobación, aprueba.
+					// NOTA: Esta fórmula se puede ajustar a la exacta de MatLab.
+					probExitoAlumno := vmap + delta*rand.NormFloat64()
+					aprobado := probExitoAlumno > asig.Rep
+
+					if _, ok := historial[sigla]; !ok {
+						historial[sigla] = &HistorialAsignatura{Sigla: sigla, Oportunidad: 0}
+					}
+
+					historial[sigla].Oportunidad++
+
+					if aprobado {
+						historial[sigla].Aprobado = true
+						creditosAprobadosTotales += asig.Cred
+					} else {
+						// Chequear si lo echan por Opor
+						if historial[sigla].Oportunidad >= req.Variables.Opor {
+							estado = EliminadoOpor
+						}
+					}
+				}
+
+				if estado == EliminadoOpor {
+					eliminadosOporChan <- 1
+					break
+				}
+
+				// 3. Chequear Tasa de Avance (TAmin)
+				if semestreActual >= req.Variables.NapTAmin {
+					// MATLAB check: (CreditosTotales / Semestre) < TAmin
+					if float64(creditosAprobadosTotales)/float64(semestreActual) < req.Variables.TAmin {
+						estado = EliminadoTAmin
+						eliminadosTAChan <- 1
+						break
+					}
+				}
+
+				semestreActual++
+			}
+
+		}(i)
+	}
+
+	wg.Wait()
+	close(resultadosChan)
+	close(eliminadosTAChan)
+	close(eliminadosOporChan)
+
+	// Agregar resultados
+	titulados := 0
+	sumaSemestres := 0
+	for sem := range resultadosChan {
+		titulados++
+		sumaSemestres += sem
+	}
+
+	elimTA := 0
+	for _ = range eliminadosTAChan {
+		elimTA++
+	}
+
+	elimOpor := 0
+	for _ = range eliminadosOporChan {
+		elimOpor++
+	}
+
+	semestresPromedio := 0.0
+	if titulados > 0 {
+		semestresPromedio = float64(sumaSemestres) / float64(titulados)
+	}
+
+	tasaTitulacion := (float64(titulados) / float64(req.Variables.NE)) * 100
+
+	return map[string]interface{}{
+		"mensaje": "Simulación completada con éxito",
+		"metricas_globales": map[string]interface{}{
+			"alumnos_simulados":  req.Variables.NE,
+			"titulados":          titulados,
+			"eliminados_tamin":   elimTA,
+			"eliminados_opor":    elimOpor,
+			"tasa_titulacion":    fmt.Sprintf("%.2f%%", tasaTitulacion),
+			"semestres_promedio": fmt.Sprintf("%.1f", semestresPromedio),
+		},
+	}
 }
 
+// ==========================================
+// 3. CONTROLADORES
+// ==========================================
+
+func SimularHandler(c *gin.Context) {
+	var req SimularRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido: " + err.Error()})
+		return
+	}
+
+	// Ejecutar Montecarlo
+	resultados := ejecutarMontecarlo(req)
+
+	// Pausa artificial para que el usuario vea el loader (Opcional, se puede quitar en prod)
+	time.Sleep(1 * time.Second)
+
+	c.JSON(http.StatusOK, resultados)
+}
+
+// (El resto de controladores de Login/Register se omiten por brevedad en la visualización,
+// pero en tu entorno deben estar presentes como los configuramos anteriormente)
 func Register(c *gin.Context) {
+	type RegisterInput struct {
+		Email    string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
 		return
 	}
-
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-
-	// Por defecto IsApproved es false.
 	usuario := Usuario{Email: input.Email, PasswordHash: string(hashedPassword)}
-
 	if err := DB.Create(&usuario).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El email ya está registrado"})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Registro exitoso. Esperando aprobación del administrador."})
+	c.JSON(http.StatusOK, gin.H{"message": "Registro exitoso. Esperando aprobación."})
 }
 
 func Login(c *gin.Context) {
+	type RegisterInput struct {
+		Email    string `json:"email" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
 		return
 	}
-
 	var usuario Usuario
 	if err := DB.Where("email = ?", input.Email).First(&usuario).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
-
 	if err := bcrypt.CompareHashAndPassword([]byte(usuario.PasswordHash), []byte(input.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
-
-	// VERIFICACIÓN DE APROBACIÓN DE ADMINISTRADOR
 	if !usuario.IsApproved {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Tu cuenta aún no ha sido aprobada por la administración."})
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cuenta no aprobada."})
 		return
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"usuario_id": usuario.ID,
 		"exp":        time.Now().Add(time.Hour * 72).Unix(),
 	})
-
 	tokenString, _ := token.SignedString(jwtSecret)
 	c.JSON(http.StatusOK, gin.H{"token": tokenString})
 }
 
 // ==========================================
-// 3. RECUPERACIÓN DE CONTRASEÑA
+// 4. MAIN
 // ==========================================
-
-type ForgotInput struct {
-	Email string `json:"email" binding:"required"`
-}
-
-type ResetInput struct {
-	Token       string `json:"token" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required"`
-}
-
-func ForgotPassword(c *gin.Context) {
-	var input ForgotInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Falta el correo electrónico"})
-		return
-	}
-
-	var usuario Usuario
-	if err := DB.Where("email = ?", input.Email).First(&usuario).Error; err != nil {
-		// Por seguridad, no decimos si el correo existe o no
-		c.JSON(http.StatusOK, gin.H{"message": "Si el correo existe, se enviará un enlace de recuperación."})
-		return
-	}
-
-	// Generar Token especial de recuperación (Válido solo por 15 min)
-	resetToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"usuario_id": usuario.ID,
-		"purpose":    "reset_password",
-		"exp":        time.Now().Add(time.Minute * 15).Unix(),
-	})
-	tokenString, _ := resetToken.SignedString(jwtSecret)
-
-	// SIMULADOR DE ENVÍO DE CORREO (Se imprime en la consola de Go)
-	fmt.Println("\n========================================================")
-	fmt.Println("📧 SIMULACIÓN DE CORREO ELECTRÓNICO ENVIADO")
-	fmt.Println("Para:", usuario.Email)
-	fmt.Println("Asunto: Recuperación de Contraseña SimulaPUCV")
-	fmt.Printf("Enlace: http://localhost:5173/?reset_token=%s\n", tokenString)
-	fmt.Println("========================================================\n")
-
-	c.JSON(http.StatusOK, gin.H{"message": "Si el correo existe, se enviará un enlace de recuperación."})
-}
-
-func ResetPassword(c *gin.Context) {
-	var input ResetInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos inválidos"})
-		return
-	}
-
-	// Validar token
-	token, err := jwt.Parse(input.Token, func(token *jwt.Token) (interface{}, error) {
-		return jwtSecret, nil
-	})
-
-	if err != nil || !token.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "El enlace es inválido o ha expirado"})
-		return
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || claims["purpose"] != "reset_password" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token no autorizado para esta acción"})
-		return
-	}
-
-	// Cambiar contraseña
-	userID := claims["usuario_id"].(string)
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
-
-	if err := DB.Model(&Usuario{}).Where("id = ?", userID).Update("password_hash", string(hashedPassword)).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo actualizar la contraseña"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Contraseña actualizada exitosamente"})
-}
-
 func main() {
+	// Configuración de BD (Actualiza password)
 	dsn := "host=localhost user=postgres password=postgres dbname=simulapucv port=5432 sslmode=disable TimeZone=America/Santiago"
-
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Error al conectar con la BD: ", err)
+		log.Fatal("Error al conectar con BD: ", err)
 	}
 
-	DB.Migrator().DropTable(&Usuario{}, &Escenario{}, &Asignatura{}, &Prerrequisito{}, &AlumnoBase{})
-	DB.AutoMigrate(&Usuario{}, &Escenario{}, &Asignatura{}, &Prerrequisito{}, &AlumnoBase{})
+	DB.AutoMigrate(&Usuario{})
 
 	r := gin.Default()
+
+	// CORS Básico
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
@@ -237,10 +370,11 @@ func main() {
 	{
 		api.POST("/register", Register)
 		api.POST("/login", Login)
-		api.POST("/forgot-password", ForgotPassword) // Nueva ruta
-		api.POST("/reset-password", ResetPassword)   // Nueva ruta
+
+		// OJO: En producción esta ruta debe usar el AuthMiddleware
+		api.POST("/simular", SimularHandler)
 	}
 
-	fmt.Println("🚀 Servidor Go corriendo en http://localhost:8080")
+	fmt.Println("🚀 Servidor Go (Montecarlo Engine) corriendo en http://localhost:8080")
 	r.Run(":8080")
 }
