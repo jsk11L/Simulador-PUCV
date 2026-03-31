@@ -4,7 +4,7 @@ import {
   ChevronRight, Lock, Mail, Activity, LogOut, ArrowLeft,
   FileSpreadsheet, FilePlus, Copy, Search, LayoutGrid, CheckCircle2, ChevronLeft,
   X, Trash2, AlertCircle, Save, FileText, History, BarChart, Check, Sliders,
-  Rocket, Loader2, Download, Users, Shield, Menu
+  Rocket, Loader2, Download, Users, Shield, Menu, HelpCircle, BookOpen, Table, Info
 } from 'lucide-react';
 import Papa from 'papaparse';
 import type { Asignatura, MallaGuardada, VariablesSimulacion, ModeloCalificaciones } from './types';
@@ -17,12 +17,9 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [resetToken, setResetToken] = useState('');
-  const [msg, setMsg] = useState({ text: '', type: '' });
-  const [isLoading, setIsLoading] = useState(false);
 
   // ==========================================
   // ESTADOS PRINCIPALES DE NAVEGACIÓN
@@ -88,15 +85,7 @@ export default function App() {
   // ==========================================
   // EFECTOS
   // ==========================================
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('reset_token');
-    if (token) {
-      setAuthMode('reset');
-      setResetToken(token);
-      window.history.replaceState({}, document.title, "/");
-    }
-  }, []);
+
 
   useEffect(() => {
     if (mallaSetupMode === 'plantilla_10me' && malla.length === 0) {
@@ -149,15 +138,13 @@ export default function App() {
     }
   }, [mallaSetupMode]);
 
-  const showMsg = (text: string, type: 'error' | 'success' | 'info') => setMsg({ text, type });
+
 
   // ==========================================
   // LÓGICA DE AUTENTICACIÓN
   // ==========================================
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    setMsg({ text: '', type: '' });
 
     try {
       if (authMode === 'login' || authMode === 'register') {
@@ -173,19 +160,16 @@ export default function App() {
 
         if (authMode === 'register') {
           setAuthMode('login');
-          showMsg('Registro completado. Esperando aprobación del admin.', 'info');
+          alert('Registro completado. Tu cuenta requiere aprobación del administrador.');
         } else {
           localStorage.setItem('simula_token', data.token);
           setIsAuthenticated(true);
           setIsAdmin(data.is_admin === true);
-          // Cargar datos del usuario desde la BD
           setTimeout(() => { fetchMallasGuardadas(); fetchResultadosPasados(); }, 100);
         }
       } 
     } catch (err: any) {
-      showMsg(err.message, 'error');
-    } finally {
-      setIsLoading(false);
+      alert(err.message || 'Error de autenticación');
     }
   };
 
@@ -816,7 +800,7 @@ export default function App() {
           </div>
 
           {selectedSubject && drawerSubject && (
-            <div className="w-[360px] bg-white border border-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.1)] rounded-xl flex flex-col absolute right-0 top-0 bottom-0 z-30 animate-in slide-in-from-right-8 mb-4">
+            <div className="w-full sm:w-[360px] bg-white border border-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.1)] rounded-xl flex flex-col absolute right-0 top-0 bottom-0 z-30 animate-in slide-in-from-right-8 mb-4">
               <div className="bg-slate-900 text-white p-5 flex justify-between items-center rounded-t-xl shrink-0">
                 <div className="flex-1 mr-4">
                   <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Editar Asignatura</span>
@@ -1419,18 +1403,18 @@ export default function App() {
     if (wizardStep === 5) return null; // No mostrar stepper durante simulación
 
     return (
-      <div className="flex items-center justify-center w-full max-w-4xl mx-auto py-6 mb-12">
+      <div className="flex items-center justify-center w-full max-w-4xl mx-auto py-4 sm:py-6 mb-8 sm:mb-12">
         {steps.map((step, index) => (
           <React.Fragment key={step.num}>
             <div className="flex flex-col items-center relative z-10">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border-2 transition-colors ${
+              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm border-2 transition-colors ${
                 wizardStep === step.num ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 
                 wizardStep > step.num ? 'bg-green-500 border-green-500 text-white' : 
                 'bg-white border-slate-300 text-slate-400'
               }`}>
-                {wizardStep > step.num ? <CheckCircle2 size={20} /> : step.num}
+                {wizardStep > step.num ? <CheckCircle2 size={16} /> : step.num}
               </div>
-              <span className={`absolute top-12 text-[11px] uppercase tracking-wider font-bold w-max max-w-[140px] text-center ${
+              <span className={`absolute top-10 sm:top-12 text-[9px] sm:text-[11px] uppercase tracking-wider font-bold w-max max-w-[80px] sm:max-w-[140px] text-center hidden sm:block ${
                 wizardStep === step.num ? 'text-blue-700' : 
                 wizardStep > step.num ? 'text-slate-700' : 'text-slate-400'
               }`}>
@@ -1438,7 +1422,7 @@ export default function App() {
               </span>
             </div>
             {index < steps.length - 1 && (
-              <div className={`flex-1 h-1 mx-2 rounded transition-colors ${
+              <div className={`flex-1 h-1 mx-1 sm:mx-2 rounded transition-colors ${
                 wizardStep > step.num ? 'bg-green-500' : 'bg-slate-200'
               }`} />
             )}
@@ -1591,6 +1575,7 @@ export default function App() {
         <div className="p-4 mt-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Biblioteca</div>
         <nav className="flex-1 px-4 space-y-1">
           {renderSidebarButton('mallas', <LayoutGrid/>, 'Mallas Guardadas')}
+          {renderSidebarButton('ayuda', <HelpCircle/>, 'Ayuda')}
         </nav>
 
         {isAdmin && (
@@ -1624,8 +1609,8 @@ export default function App() {
         </button>
         {activeTab === 'wizard' && (
           <>
-            <div className="mb-4 mt-2 shrink-0">
-              <h2 className="text-2xl font-black text-slate-800 text-center">Configurar Nueva Simulación</h2>
+            <div className="mb-4 mt-2 shrink-0 pl-10 lg:pl-0">
+              <h2 className="text-lg sm:text-2xl font-black text-slate-800 text-center">Configurar Nueva Simulación</h2>
             </div>
             {renderWizardStepIndicator()}
             {wizardStep === 1 && renderMallaStep()}
@@ -1637,7 +1622,7 @@ export default function App() {
         )}
 
         {activeTab === 'mallas' && (
-          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-12">
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
             <div className="w-full max-w-4xl">
               <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-200">
                 <LayoutGrid size={32} className="text-blue-600" />
@@ -1668,7 +1653,7 @@ export default function App() {
         )}
 
         {activeTab === 'resultados_pasados' && (
-          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-8">
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-4 sm:p-8">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
               <History size={28} className="text-blue-600" />
               <div>
@@ -1717,7 +1702,7 @@ export default function App() {
         )}
 
         {activeTab === 'ultimo_resultado' && (
-          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-8">
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-4 sm:p-8">
             {simResults ? (
               <div className="w-full max-w-4xl mx-auto">
                 <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
@@ -1729,7 +1714,7 @@ export default function App() {
                 </div>
 
                 {/* KPIs principales */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
                     <p className="text-xs font-bold text-slate-500 uppercase mb-1">Tasa Titulación (PPE)</p>
                     <p className="text-2xl font-black text-blue-600">{simResults.metricas_globales?.tasa_titulacion_pct}%</p>
@@ -1745,7 +1730,7 @@ export default function App() {
                 </div>
 
                 {/* Métricas secundarias */}
-                <div className="grid grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                   <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
                     <p className="text-xs font-bold text-slate-400 uppercase">NE</p>
                     <p className="text-lg font-black text-slate-700">{simResults.metricas_globales?.alumnos_simulados}</p>
@@ -1793,7 +1778,7 @@ export default function App() {
         )}
 
         {activeTab === 'log' && (
-          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-8">
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-4 sm:p-8">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
               <FileText size={28} className="text-slate-600" />
               <div>
@@ -1803,7 +1788,7 @@ export default function App() {
             </div>
             {simResults ? (
               <>
-                <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
                     <p className="text-xs font-bold text-slate-400">PPE</p>
                     <p className="text-lg font-black text-blue-600">{simResults.metricas_globales?.tasa_titulacion_pct}%</p>
@@ -1835,7 +1820,7 @@ export default function App() {
         )}
 
         {activeTab === 'admin' && isAdmin && (
-          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-8">
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-4 sm:p-8">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
               <Shield size={28} className="text-amber-600" />
               <div>
@@ -1914,6 +1899,181 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'ayuda' && (
+          <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm overflow-y-auto p-4 sm:p-8">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center gap-3 mb-8 pb-4 border-b border-slate-200">
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <BookOpen size={24} className="text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Guía de Uso — SimulaPUCV</h2>
+                  <p className="text-sm text-slate-500">Aprende a usar la plataforma de simulación curricular</p>
+                </div>
+              </div>
+
+              {/* Qué es SimulaPUCV */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <Info size={20} className="text-blue-500" /> ¿Qué es SimulaPUCV?
+                </h3>
+                <p className="text-slate-600 leading-relaxed">
+                  SimulaPUCV es una plataforma de simulación académica basada en el <strong>Método Estocástico de Montecarlo</strong>. 
+                  Permite evaluar el impacto de cambios curriculares sobre indicadores clave como la <strong>tasa de titulación</strong>, 
+                  <strong>tiempo promedio de egreso</strong> y <strong>ramos críticos</strong>, sin necesidad de conocimientos en programación.
+                </p>
+              </div>
+
+              {/* Flujo paso a paso */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                  <Rocket size={20} className="text-blue-500" /> Flujo de Trabajo (Wizard)
+                </h3>
+                <div className="space-y-4">
+                  {[
+                    { step: 1, title: 'Diseño de Malla', desc: 'Crea tu malla curricular usando la plantilla incluida, importando un CSV, cargando una malla guardada, o empezando en blanco. Cada asignatura tiene: Sigla, Créditos, Tasa de Reprobación, Prerrequisitos y Dictación (anual o semestral).' },
+                    { step: 2, title: 'Variables de Simulación', desc: 'Configura NE (número de estudiantes virtuales), NCSmax (créditos máximos por semestre), TAmin (tasa de avance mínima), NapTAmin (semestre de aplicación) y Opor (oportunidades máximas para reprobar).' },
+                    { step: 3, title: 'Modelo Estocástico', desc: 'Define la media de aprobación (VMap) y su variación (Delta) para 3 ciclos: Básico (Sem 1-4), Profesional (Sem 5-8) y Titulación (Sem 9+). Valores entre 0.0 y 1.0.' },
+                    { step: 4, title: 'Resumen', desc: 'Verifica todos los parámetros antes de ejecutar. Aquí se muestran la malla, las variables y el modelo en una vista consolidada.' },
+                    { step: 5, title: 'Resultados', desc: 'Dashboard con KPIs (PPE, PSCE, EE, PEO), histograma de tiempos de titulación, tabla de ramos críticos. Puedes descargar todo como .zip.' },
+                  ].map(s => (
+                    <div key={s.step} className="flex gap-4 items-start">
+                      <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0">{s.step}</div>
+                      <div>
+                        <h4 className="font-bold text-slate-800">{s.title}</h4>
+                        <p className="text-sm text-slate-600 mt-1">{s.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Métricas explicadas */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                  <BarChart3 size={20} className="text-blue-500" /> Métricas del Dashboard
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { sigla: 'PPE', nombre: 'Tasa de Titulación', desc: 'Porcentaje de estudiantes que logran titularse del total simulado.' },
+                    { sigla: 'PSCE', nombre: 'Semestres Promedio', desc: 'Número promedio de semestres que tarda un titulado en egresar.' },
+                    { sigla: 'EE', nombre: 'Eficiencia de Egreso', desc: 'Ratio entre semestres teóricos y el promedio real (1.0 = ideal).' },
+                    { sigla: 'PEO', nombre: 'Egreso Oportuno', desc: 'Porcentaje que egresa dentro de la duración teórica de la carrera.' },
+                    { sigla: 'Ret 1°', nombre: 'Retención 1er Año', desc: 'Porcentaje que sigue activo luego del primer año (2 semestres).' },
+                    { sigla: 'Ret 3°', nombre: 'Retención 3er Año', desc: 'Porcentaje que sigue activo luego del tercer año (6 semestres).' },
+                  ].map(m => (
+                    <div key={m.sigla} className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{m.sigla}</span>
+                        <span className="font-bold text-slate-800 text-sm">{m.nombre}</span>
+                      </div>
+                      <p className="text-xs text-slate-500">{m.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Formato CSV */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                  <Table size={20} className="text-blue-500" /> Formato de CSV para Importar Mallas
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                  Para importar una malla desde un archivo CSV, el archivo debe tener las siguientes columnas (el orden no importa, se detectan automáticamente por nombre):
+                </p>
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full text-sm border border-slate-200 rounded-lg overflow-hidden">
+                    <thead>
+                      <tr className="bg-slate-800 text-white">
+                        <th className="p-3 text-left font-bold">Columna</th>
+                        <th className="p-3 text-left font-bold">Tipo</th>
+                        <th className="p-3 text-left font-bold">Descripción</th>
+                        <th className="p-3 text-left font-bold">Ejemplo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['id / sigla / codigo', 'Texto', 'Identificador único de la asignatura', 'MAT-101'],
+                        ['semestre / sem', 'Número', 'Semestre donde se ubica (1, 2, 3...)', '1'],
+                        ['cred / creditos', 'Número', 'Créditos académicos de la asignatura', '6'],
+                        ['rep / reprobacion / tasa', 'Decimal', 'Tasa de reprobación histórica (0.0 a 1.0)', '0.53'],
+                        ['reqs / prerrequisitos', 'Texto', 'IDs separados por ; (vacío si no tiene)', 'MAT-101;FIS-101'],
+                        ['dictacion', 'Texto', '«anual» o «semestral»', 'semestral'],
+                      ].map(([col, tipo, desc, ej], i) => (
+                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                          <td className="p-3 font-mono text-xs font-bold text-blue-700">{col}</td>
+                          <td className="p-3 text-slate-600">{tipo}</td>
+                          <td className="p-3 text-slate-600">{desc}</td>
+                          <td className="p-3 font-mono text-xs text-slate-800 bg-slate-100">{ej}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="bg-slate-900 rounded-xl p-5 mb-4">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ejemplo de archivo CSV</p>
+                  <pre className="text-green-400 font-mono text-xs leading-relaxed overflow-x-auto">{`id,semestre,cred,rep,reqs,dictacion
+MAT-101,1,6,0.53,,semestral
+FIS-101,1,5,0.48,,semestral
+QUI-101,1,4,0.40,,semestral
+MAT-201,2,6,0.51,MAT-101,semestral
+FIS-201,2,5,0.46,FIS-101,anual
+FIS-301,3,5,0.44,FIS-201;MAT-201,anual`}</pre>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm text-amber-800 font-semibold flex items-center gap-2">
+                    <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                    Notas importantes sobre el CSV
+                  </p>
+                  <ul className="text-xs text-amber-700 mt-2 space-y-1 ml-6 list-disc">
+                    <li>La primera fila debe ser la cabecera con los nombres de columna.</li>
+                    <li>Los prerrequisitos se separan con punto y coma (<code className="bg-amber-100 px-1 rounded">;</code>).</li>
+                    <li>Si la asignatura no tiene prerrequisitos, dejar el campo vacío.</li>
+                    <li>La tasa de reprobación debe ser un decimal entre 0.0 y 1.0 (ej: 0.53 = 53%).</li>
+                    <li>La dictación debe ser exactamente <code className="bg-amber-100 px-1 rounded">anual</code> o <code className="bg-amber-100 px-1 rounded">semestral</code>.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Descargas */}
+              <div className="mb-8">
+                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-3">
+                  <Download size={20} className="text-blue-500" /> Descarga de Resultados
+                </h3>
+                <p className="text-sm text-slate-600 mb-3">
+                  Después de ejecutar una simulación, el botón <strong>"Descargar (.zip)"</strong> genera un archivo comprimido con:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    ['malla.csv', 'Todas las asignaturas con sus parámetros'],
+                    ['parametros.txt', 'Variables de simulación y modelo estocástico'],
+                    ['resultados.csv', 'KPIs y distribución de semestres de titulación'],
+                    ['ramos_criticos.csv', 'Ranking de ramos por tasa de fallo en la simulación'],
+                  ].map(([file, desc]) => (
+                    <div key={file} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-start gap-3">
+                      <FileSpreadsheet size={18} className="text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-mono text-xs font-bold text-slate-800">{file}</span>
+                        <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Créditos */}
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-6 text-center">
+                <p className="text-sm text-slate-600">
+                  <strong>SimulaPUCV</strong> — Basado en el modelo de simulación de <strong>Jorge Mendoza Baeza</strong> (PUCV, 2023).
+                </p>
+                <p className="text-xs text-slate-400 mt-2">Motor de Montecarlo con Goroutines · React + TypeScript · Go + Gin · PostgreSQL</p>
+              </div>
+            </div>
           </div>
         )}
       </main>
