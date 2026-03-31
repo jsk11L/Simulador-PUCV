@@ -19,6 +19,22 @@ export interface MallaGuardada {
   fecha: string;
 }
 
+export interface MallaGuardadaApi {
+  id: string;
+  nombre: string;
+  asignaturas?: Asignatura[];
+  total_semestres: number;
+  updated_at: string;
+}
+
+export interface AdminUsuario {
+  id: string;
+  email: string;
+  is_approved: boolean;
+  is_admin: boolean;
+  created_at: string;
+}
+
 export interface VariablesSimulacion {
   ne: number;
   ncsmax: number;
@@ -73,3 +89,12 @@ export interface ResultadoPasado {
   metricas_globales: MetricasGlobales;
   created_at: string;
 }
+
+export type ActiveTab =
+  | 'wizard'
+  | 'log'
+  | 'ultimo_resultado'
+  | 'resultados_pasados'
+  | 'mallas'
+  | 'ayuda'
+  | 'admin';

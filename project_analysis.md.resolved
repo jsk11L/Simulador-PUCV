@@ -1,0 +1,225 @@
+# SimulaPUCV — Estado del Proyecto (Actualizado)
+
+> **Última actualización:** 2026-03-31 — Fase 9 en progreso
+
+---
+
+## 1. Estructura de Archivos Actual
+
+```
+Simulador-PUCV/
+├── README.md
+├── .gitignore                         # Global (backend + frontend)
+│
+├── original/                          # Material de referencia
+│   ├── MallasV12.m                    # Script MATLAB original
+│   ├── Civilelectrica93.xlsx          # Data histórica
+│   ├── MatLab Original Code.md
+│   ├── Paper Resume.md
+│   └── XLSX File Description.md
+│
+├── frontend/
+│   ├── package.json                   # React 19, Tailwind v4, Vite 8, PapaParse, JSZip
+│   ├── vite.config.ts
+│   ├── index.html
+│   └── src/
+│       ├── main.tsx
+│       ├── index.css
+│       ├── types.ts                   # Interfaces TypeScript centralizadas
+│       └── App.tsx                    # Monolito principal (en refactor incremental)
+│
+└── backend/
+    ├── go.mod / go.sum
+    ├── .env                           # DSN, JWT_SECRET
+    ├── main.go                        # Slim (~95 líneas: bootstrap + routes)
+    ├── models/
+    │   └── models.go                  # Payloads, enums, structs, modelos GORM
+    ├── engine/
+    │   └── montecarlo.go              # Motor de simulación aislado
+    ├── middleware/
+    │   └── auth.go                    # JWT AuthMiddleware
+    └── handlers/
+        └── handlers.go               # Auth, Simulación, CRUD, Admin
+```
+
+---
+
+## 2. Estado Funcional Completo
+
+### Backend — 13 Endpoints
+
+| Endpoint | Método | Ruta | Estado |
+|----------|--------|------|--------|
+| Registro | `POST` | `/api/register` | ✅ |
+| Login | `POST` | `/api/login` | ✅ (retorna `is_admin`) |
+| Simulación | `POST` | `/api/simular` | ✅ Auto-guarda resultado |
+| CRUD Mallas | `POST/GET/PUT/DELETE` | `/api/mallas` | ✅ (4 endpoints) |
+| Listar Resultados | `GET` | `/api/resultados` | ✅ |
+| Ver Resultado | `GET` | `/api/resultados/:id` | ✅ |
+| Exportar Backup | `GET` | `/api/exportar` | ✅ JSON backup |
+| Listar Usuarios (admin) | `GET` | `/api/admin/usuarios` | ✅ |
+| Aprobar Usuario (admin) | `PATCH` | `/api/admin/usuarios/:id` | ✅ |
+
+### Motor de Montecarlo
+- ✅ Todas las métricas del Paper: PPE, PSCE, EE, PEO, Retención 1er/3er año
+- ✅ Distribución de semestres + Tabla de ramos críticos
+- ✅ Worker pool con semáforo de 500 goroutines
+- ✅ `math.Abs()` replicando el MATLAB
+
+### Frontend — Funcionalidades
+
+| Funcionalidad | Estado |
+|---------------|--------|
+| Login / Registro (toggle visual) | ✅ |
+| Wizard 5 pasos completo | ✅ |
+| Plantilla realista (8 sem, 32 asignaturas) | ✅ |
+| Kanban + Drawer de edición | ✅ |
+| Importar CSV (PapaParse) | ✅ |
+| Guardar/Cargar mallas (PostgreSQL) | ✅ |
+| Dashboard de resultados (KPIs + histograma + ramos) | ✅ |
+| Descargar resultados .zip | ✅ |
+| Sidebar views mejoradas (Pasados/Último/Log) | ✅ |
+| Panel de Admin | ✅ |
+| **Responsive / Móvil** | ✅ **Fase 8** |
+| Tab "Ayuda" | ✅ |
+
+---
+
+## 3. Detalle de Cambios Responsive (Fase 8)
+
+### Sidebar Colapsable
+- **Desktop (lg:)**: Sidebar fijo `relative`, siempre visible, 256px ancho
+- **Mobile (<lg)**: Sidebar `fixed`, oculto por defecto (`-translate-x-full`), se abre con hamburger
+- Overlay oscuro detrás al abrir (`bg-black/50`)
+- Botón `X` en header del sidebar para cerrar
+- `setSidebarOpen(false)` en TODOS los botones de navegación
+- Hamburger `Menu` fijo top-left con z-20 (solo visible en mobile)
+
+### Grids Responsivos
+
+| Sección | Mobile | Tablet (sm:) | Desktop (lg:) |
+|---------|--------|------------|-------------|
+| KPI Cards (Resultados) | 1 col | 2 cols | 3 cols |
+| Eliminados | 1 col | 2 cols | 2 cols |
+| Último Resultado KPIs | 1 col | 3 cols | 3 cols |
+| Métricas secundarias | 2 cols | 4 cols | 4 cols |
+| Log KPIs | 2 cols | 4 cols | 4 cols |
+| Resumen Wizard | 1 col | — | 3 cols |
+
+### Otros Cambios
+- **Wizard Step Indicator**: Circles `w-8/h-8` en mobile, `w-10/h-10` en sm:. Labels ocultos en mobile (`hidden sm:block`)
+- **Drawer de edición**: `w-full sm:w-[360px]` — full-width en mobile, panel lateral en desktop
+- **Main padding**: `p-4 sm:p-6 lg:p-8` — progresivo
+- **Secciones de contenido**: Padding `p-4 sm:p-8` en todas
+- **Results header**: `flex-col sm:flex-row` — botones debajo del título en mobile
+- **Título wizard**: `text-lg sm:text-2xl`, con `pl-10 lg:pl-0` para clearance del hamburger
+- **Admin table**: Ya tenía `overflow-x-auto` (scroll horizontal en mobile)
+
+### Avance Fase 9 (cierre en progreso)
+- ✅ README principal reescrito al estado real del sistema
+- ✅ Limpieza documental: eliminación de `GEMINI.md`
+- ✅ Fix responsive del Paso 1 (Diseño de Malla):
+    - CTA persistente de avance ubicado abajo del Kanban
+    - Scroll general habilitado para toda la pantalla de creación de malla
+    - Mejoras de scroll horizontal táctil del tablero
+    - Navegación explícita por semestres con botones izquierda/derecha en desktop
+    - Límite máximo de malla fijado en 20 semestres (UI + importación CSV + carga guardada)
+    - Ajustes mobile en header del paso y drawer de edición
+- ✅ Refactor incremental continuado:
+    - Extracción del Paso 1 a componente de dominio (`MallaStep`)
+    - Extracción de los pasos 2, 3 y 4 del wizard (`VariablesStep`, `ModeloCalificacionesStep`, `ResumenStep`)
+    - Extracción de vistas: Mallas Guardadas, Resultados Pasados, Ultimo Resultado, Log
+    - Extracción de hook API (`useSimulaApi`) para centralizar fetches de mallas/resultados/admin
+    - Extracción de modales globales a componentes reutilizables (`ValidationErrorsModal`, `GuardarMallaModal`, `MallasGuardadasModal`)
+    - Extracción de hook base de estado del wizard (`useWizardState`) con reset centralizado
+    - Extracción de handlers de edición/validación de malla a `useMallaEditorActions`
+    - Extracción de ejecución de simulación y exportación ZIP a `useSimulationActions`
+- ✅ Separación final de navegación y autentificación completada:
+    - Hook de autenticación (`useAuth`) para login/registro/logout
+    - Hook de navegación (`useAppNavigation`) para tab activa y sidebar móvil
+    - Extracción de pantalla de acceso a componente (`AuthView`)
+    - Extracción de sidebar principal a componente (`AppSidebar`)
+- ✅ Desacople del render principal completado:
+    - Extracción del render por tabs/pasos a `AppMainContent`
+    - `App.tsx` reducido a ~569 líneas y centrado en orquestación
+    - Simplificación de contrato de `MallaStep` agrupando `setters` y `actions`
+- ✅ Refactor adicional de cierre (continuación):
+    - Extracción de persistencia de malla a `useMallaPersistence` (guardar, cargar, importar CSV)
+    - Tipado fuerte de navegación con `ActiveTab` (evita strings sueltos)
+    - Confirmación de seguridad en "Nueva Simulación" para evitar pérdida accidental de trabajo
+
+---
+
+## 4. Modelos de Base de Datos
+
+| Tabla | Campos Clave |
+|-------|-------------|
+| `usuarios` | ID (UUID), Email, PasswordHash, IsApproved, IsAdmin, CreatedAt |
+| `malla_guardada_dbs` | ID (UUID), UsuarioID, Nombre, TotalSemestres, Asignaturas (JSONB) |
+| `resultado_simulacion_dbs` | ID (UUID), UsuarioID, MallaNombre, MetricasJSON, DistribucionJSON, RamosCriticosJSON, VariablesJSON, ModeloJSON |
+
+---
+
+## 5. Problemas Conocidos
+
+### 🟡 Moderados
+1. **Forgot/Reset Password** — funcionalidad descartada temporalmente por prioridad de cierre
+2. **Frontend monolítico** — App.tsx ~569 líneas (mejoró de forma sustancial, pero aún conviene modularizar)
+
+### ⚪ Menores
+4. **Warnings TS deliberados** — `resetToken`, `msg`, `isLoading` reservados
+5. **CORS wildcard `*`** — Ok para dev, cambiar en producción
+6. **Sin tests** — Ni unitarios ni de integración
+
+---
+
+## 6. Roadmap Final
+
+| Fase | Contenido | Estado |
+|------|-----------|--------|
+| 0 | Limpieza, .env, .gitignore, fix abs(), fix DeltaM | ✅ |
+| 1 | Motor Montecarlo completo, worker pool, JWT middleware | ✅ |
+| 2 | Dashboard: KPIs, histograma, ramos críticos | ✅ |
+| 3 | Persistencia PostgreSQL: GORM, CRUD, auto-save | ✅ |
+| 4 | Refactorización: 4 paquetes Go + types.ts | ✅ |
+| 5 | CSV Import (PapaParse) + Exportación JSON | ✅ |
+| 6 | Panel de Administrador | ✅ |
+| 7 | Testing + Fixes: NE→150, registro, .zip, malla realista | ✅ |
+| 8 | **Responsive y pulido** | ✅ |
+| **9** | **Cierre: tab Ayuda, README, limpieza, ajuste responsive malla** | 🔄 **En progreso (alto avance)** |
+
+---
+
+## 7. Stack Tecnológico
+
+| Capa | Tecnología | Versión |
+|------|-----------|---------|
+| Frontend | React + TypeScript | React 19, TS 5.9 |
+| Estilos | Tailwind CSS v4 | 4.2.2 |
+| Bundler | Vite | 8.0.1 |
+| Íconos | lucide-react | 1.7.0 |
+| CSV Parser | PapaParse | latest |
+| ZIP Generator | JSZip | latest |
+| Backend | Go + Gin | Go 1.26.1, Gin 1.12.0 |
+| ORM | GORM | 1.31.1 |
+| BD | PostgreSQL | pgx v5 |
+| Auth | JWT + bcrypt | jwt v5.3.1 |
+
+---
+
+## 8. Plantilla de Malla Incluida
+
+"Ingeniería Civil (Plantilla 8 Sem)" — **32 asignaturas**, **8 semestres**, **143 créditos**:
+
+| Sem | Siglas | Área | Rep. media |
+|-----|--------|------|-----------|
+| 1 | MAT-101, FIS-101, QUI-101, INF-101 | Ciencias Básicas | 44% |
+| 2 | MAT-201, FIS-201, ALG-201, INF-201 | Ciencias Básicas II | 45% |
+| 3 | MAT-301, FIS-301, EST-301, ING-301 | Ciencias Ingeniería I | 40% |
+| 4 | MAT-401, ELE-401, MEC-401, ING-401 | Ciencias Ingeniería II | 41% |
+| 5 | ELE-501, CTR-501, TER-501, ADM-501 | Especialidad I | 35% |
+| 6 | ELE-601, CTR-601, POT-601, ECO-601 | Especialidad II | 34% |
+| 7 | PRY-701, ELE-701, GES-701, LAB-701 | Integración | 28% |
+| 8 | TIT-801, PRA-801, SEM-801, ETI-801 | Titulación | 19% |
+
+Prerrequisitos lógicos entre semestres · Dictación mixta (anual/semestral)

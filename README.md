@@ -1,75 +1,131 @@
-# 📘 SimulaPUCV: Plataforma de Simulación Académica
+# SimulaPUCV
 
-**SimulaPUCV** es una aplicación web SaaS (Software as a Service) diseñada para modernizar y automatizar el análisis de rendimiento estudiantil en la carrera de Ingeniería Civil Eléctrica de la Pontificia Universidad Católica de Valparaíso (PUCV). Reemplaza procesos manuales y hojas de cálculo por un entorno digital interactivo y basado en datos reales.
+Plataforma SaaS para simulación curricular de Ingeniería Civil Eléctrica PUCV, basada en Montecarlo y orientada a análisis de trayectoria académica.
 
-## 🚀 Características Principales
+Estado general: casi completado (cierre de fase final en curso).
 
-### 🛡️ Seguridad y Autenticación
-*   **Sistema de Usuarios**: Registro y Login seguro para jefaturas de carrera.
-*   **Aprobación de Cuentas**: Los nuevos usuarios quedan en estado `IsApproved = false` hasta ser validados por un administrador.
-*   **Recuperación de Contraseña**: Flujo completo de `Forgot Password` y `Reset Password` con tokens temporales.
+## Estado actual del proyecto
 
-### 🧙‍♂️ Flujo de Usuario (Wizard)
-El sistema guía al usuario a través de un proceso estructurado para configurar y ejecutar simulaciones:
+### Implementado
+- Autenticación con registro/login y aprobación administrativa de usuarios.
+- Wizard de simulación en 5 pasos.
+- Diseño de malla con tablero tipo Kanban.
+- Carga de plantilla realista (8 semestres, 32 asignaturas).
+- Importación de mallas vía CSV (PapaParse).
+- Guardado/carga de mallas en PostgreSQL.
+- Motor Montecarlo en Go con concurrencia (worker pool).
+- Dashboard de resultados con KPIs, histograma y ramos críticos.
+- Historial de resultados y vista de último resultado.
+- Exportación de resultados en `.zip`.
+- Panel de administración de usuarios.
+- Tab de ayuda integrada en frontend.
 
-1.  **Diseño de Malla (Kanban)**:
-    *   **Importación**: Carga de mallas desde archivos CSV (Excel) o plantillas predefinidas.
-    *   **Edición Visual**: Interfaz tipo Kanban para gestionar asignaturas.
-    *   **Validaciones Inteligentes**:
-        *   Verificación de semestres vacíos.
-        *   Control de prerrequisitos (no pueden estar en el mismo semestre o en el futuro).
-        *   Definición de dictación (Anual o Semestral).
+### No crítico y fuera de alcance inmediato
+- Recuperación de contraseña (forgot/reset): descartado temporalmente por prioridad funcional.
 
-2.  **Variables de Simulación**:
-    *   Configuración de parámetros estocásticos:
-        *   `NE`: Número de estudiantes a simular.
-        *   `NCSmax`: Tope de créditos por semestre.
-        *   `TAmin`: Tasa de avance mínima para evitar eliminación.
-        *   `Opor`: Oportunidades máximas para reprobar.
+### Pendientes de cierre
+- Pulido responsive final en pantalla de creación de mallas.
+- Refactorización de `frontend/src/App.tsx` para reducir monolito.
+- Ajustes finales de limpieza y documentación.
 
-3.  **Modelo Estocástico**:
-    *   Configuración de parámetros de aprobación:
-        *   `VMap`: Valor medio de aprobación por ciclo (Básico, Profesional, Titulación).
-        *   `Delta`: Desviación estándar para la aleatoriedad.
+## Arquitectura
 
-4.  **Resumen y Ejecución**:
-    *   Revisión final de la configuración antes de enviar la simulación al servidor.
+```text
+Simulador-PUCV/
+├── README.md
+├── project_analysis.md.resolved
+├── original/
+│   ├── MallasV12.m
+│   ├── MatLab Original Code.md
+│   ├── Paper Resume.md
+│   └── XLSX File Description.md
+├── backend/
+│   ├── main.go
+│   ├── engine/montecarlo.go
+│   ├── handlers/handlers.go
+│   ├── middleware/auth.go
+│   └── models/models.go
+└── frontend/
+    └── src/
+        ├── App.tsx
+        └── types.ts
+```
 
-### ⚙️ Motor de Simulación (Backend)
-*   **Tecnología**: Golang (Go) con framework Gin.
-*   **Algoritmo**: Implementación fiel del método estocástico de Montecarlo.
-*   **Concurrencia**: Uso intensivo de **Goroutines** para procesar miles de estudiantes en paralelo, optimizando drásticamente el tiempo de cálculo.
-*   **Lógica de Negocio**:
-    *   Simula la trayectoria académica completa de cada estudiante virtual.
-    *   Aplica reglas de retención universitaria (eliminación por bajo avance o exceso de reprobaciones).
-    *   Maneja la lógica de dictación (anual/semestral) para calcular atrasos reales.
+## Stack
 
-### 📊 Resultados y Dashboard
-*   **Integración con PostgreSQL**: Persistencia de mallas y resultados en bases de datos (`MallaDB`, `ResultadoDB`).
-*   **KPIs de Rendimiento**:
-    *   **CT**: Porcentaje Promedio de Egresados.
-    *   **PSC**: Promedio de Semestres Cursados para Egreso.
-    *   **EE**: Eficiencia de Egreso.
-    *   **PEO**: Porcentaje de Egresados Oportunamente.
-*   **Visualización de Datos**:
-    *   Gráficos interactivos de distribución de tiempos de titulación.
-    *   Tablas de "Ramos Críticos" identificados durante la simulación.
-    *   Historial de resultados anteriores y logs de auditoría.
+- Frontend: React 19, TypeScript 5.9, Vite 8, Tailwind v4
+- Backend: Go 1.26.1, Gin 1.12, GORM 1.31
+- Base de datos: PostgreSQL (pgx v5)
+- Seguridad: JWT + bcrypt
+- Librerías clave: lucide-react, PapaParse, JSZip
 
-## 🛠️ Stack Tecnológico
+## Endpoints principales
 
-*   **Frontend**: React.js + TypeScript (Vite).
-*   **Estilos**: Tailwind CSS v4.
-*   **Iconografía**: lucide-react.
-*   **Backend**: Golang (Gin).
-*   **Base de Datos**: PostgreSQL.
-*   **ORM**: GORM.
-*   **Seguridad**: JWT, bcrypt.
+- `POST /api/register`
+- `POST /api/login`
+- `POST /api/simular`
+- `POST /api/mallas`
+- `GET /api/mallas`
+- `PUT /api/mallas/:id`
+- `DELETE /api/mallas/:id`
+- `GET /api/resultados`
+- `GET /api/resultados/:id`
+- `GET /api/exportar`
+- `GET /api/admin/usuarios`
+- `PATCH /api/admin/usuarios/:id`
 
-## 📝 Decisiones de Diseño y Pivotes
+## Fuente metodológica
 
-Durante el desarrollo, se tomaron decisiones clave para optimizar la experiencia del usuario y la integridad del modelo:
+El comportamiento objetivo del simulador se basa en los artefactos de `original/`:
+- Paper resumido
+- Script y lógica original en MATLAB
+- Descripción de datos históricos
 
-*   **Abandono de Simulación por Certámenes**: Se descartó simular evaluación por evaluación debido a que la data histórica solo provee tasas de reprobación globales por ramo.
-*   **Eliminación de Generación Manual de Alumnos**: Se simplificó el flujo eliminando la carga manual de alumnos, optando por generar cohortes virtuales estadísticas.
-*   **Enfoque Desktop-First**: Se priorizó la estabilidad y funcionalidad en pantallas grandes (Desktop) sobre la adaptabilidad móvil inmediata, debido a problemas de renderizado en resoluciones bajas.
+Estos documentos son la referencia para validar equivalencia del modelo y reglas académicas.
+
+## Ejecutar el proyecto
+
+### Requisitos
+- Node.js 20+
+- Go 1.26+
+- PostgreSQL 14+
+
+### Backend
+
+```bash
+cd backend
+go mod tidy
+go run .
+```
+
+Configura `backend/.env` con tu conexión a PostgreSQL y secreto JWT.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Por defecto el frontend consume `http://localhost:8080`.
+Puedes cambiarlo con `VITE_API_BASE_URL`.
+
+## Flujo recomendado de uso
+
+1. Iniciar sesión.
+2. Crear malla: plantilla, CSV, guardada o en blanco.
+3. Ajustar variables de simulación.
+4. Ajustar modelo estocástico.
+5. Revisar resumen y ejecutar simulación.
+6. Analizar dashboard y descargar resultados.
+
+## Riesgos técnicos conocidos
+
+- `App.tsx` aún concentra demasiada lógica y UI.
+- Sin suite de tests automatizados.
+- CORS wildcard para desarrollo (debe ajustarse en producción).
+
+## Próximo paso de desarrollo
+
+Refactor incremental de `App.tsx` en módulos (wizard, malla, resultados, admin, ayuda, hooks API/estado) manteniendo compatibilidad funcional total.
