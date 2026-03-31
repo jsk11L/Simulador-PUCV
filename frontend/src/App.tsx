@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  BarChart3, Settings, Users, BookOpen, Play, 
+  BarChart3, Play, 
   ChevronRight, Lock, Mail, Activity, LogOut, ArrowLeft,
   FileSpreadsheet, FilePlus, Copy, Search, LayoutGrid, CheckCircle2, ChevronLeft,
   X, Trash2, AlertCircle, Save, FileText, History, BarChart, Check, Sliders,
@@ -98,7 +98,7 @@ export default function App() {
     vmap5678: 0.55,
     delta5678: 0.20,
     vmapm: 0.65,
-    deltam: 0.20
+    deltam: 0.25
   });
 
   // ==========================================

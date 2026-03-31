@@ -3,13 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -78,7 +81,7 @@ type Usuario struct {
 }
 
 var DB *gorm.DB
-var jwtSecret = []byte("simula_pucv_super_secreta_2026")
+var jwtSecret []byte
 
 // ==========================================
 // 2. MOTOR DE MONTECARLO (GOLANG CONCURRENTE)
@@ -182,7 +185,8 @@ func ejecutarMontecarlo(req SimularRequest) map[string]interface{} {
 					// Modelo Normal: Genera un valor alrededor del Valor Medio
 					// Si es superior a la Tasa Histórica de Reprobación, aprueba.
 					// NOTA: Esta fórmula se puede ajustar a la exacta de MatLab.
-					probExitoAlumno := vmap + delta*rand.NormFloat64()
+					// math.Abs replica fielmente el MATLAB: abs(VMap + Delta.*randn(l,1))
+					probExitoAlumno := math.Abs(vmap + delta*rand.NormFloat64())
 					aprobado := probExitoAlumno > asig.Rep
 
 					if _, ok := historial[sigla]; !ok {
@@ -280,9 +284,6 @@ func SimularHandler(c *gin.Context) {
 	// Ejecutar Montecarlo
 	resultados := ejecutarMontecarlo(req)
 
-	// Pausa artificial para que el usuario vea el loader (Opcional, se puede quitar en prod)
-	time.Sleep(1 * time.Second)
-
 	c.JSON(http.StatusOK, resultados)
 }
 
@@ -342,8 +343,25 @@ func Login(c *gin.Context) {
 // 4. MAIN
 // ==========================================
 func main() {
-	// Configuración de BD (Actualiza password)
-	dsn := "host=localhost user=postgres password=postgres dbname=simulapucv port=5432 sslmode=disable TimeZone=America/Santiago"
+	// Cargar variables de entorno desde .env
+	if err := godotenv.Load(); err != nil {
+		log.Println("Aviso: No se encontró archivo .env, usando variables del sistema")
+	}
+
+	// Configurar JWT Secret
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("JWT_SECRET no está definido en las variables de entorno")
+	}
+	jwtSecret = []byte(secret)
+
+	// Configuración de BD desde variables de entorno
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
+		os.Getenv("DB_HOST"), os.Getenv("DB_USER"), os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_NAME"), os.Getenv("DB_PORT"), os.Getenv("DB_SSLMODE"),
+		os.Getenv("DB_TIMEZONE"),
+	)
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
