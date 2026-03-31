@@ -66,6 +66,7 @@ type ResultadoAlumno struct {
 	SemestresUsados   int
 	ReprobacionesRamo map[string]int
 	IntentosRamo      map[string]int
+	EstadoTimeline    []EstadoAlumno
 }
 
 type RamoCritico struct {
@@ -88,11 +89,37 @@ type MetricasGlobales struct {
 	Retencion3erAnioPct float64 `json:"retencion_3er_anio_pct"`
 }
 
+type HeatmapEstadoSemestre struct {
+	Semestre       int `json:"semestre"`
+	Activos        int `json:"activos"`
+	Titulados      int `json:"titulados"`
+	EliminadosTA   int `json:"eliminados_ta"`
+	EliminadosOpor int `json:"eliminados_opor"`
+}
+
+type TransicionEstado struct {
+	Semestre int    `json:"semestre"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Value    int    `json:"value"`
+}
+
+type SensibilidadParametro struct {
+	Parametro string  `json:"parametro"`
+	Base      float64 `json:"base"`
+	Menos10   float64 `json:"menos_10"`
+	Mas10     float64 `json:"mas_10"`
+	Impacto   float64 `json:"impacto"`
+}
+
 type SimulacionResponse struct {
-	Mensaje               string       `json:"mensaje"`
-	MetricasGlobales      MetricasGlobales `json:"metricas_globales"`
-	DistribucionSemestres map[int]int  `json:"distribucion_semestres"`
-	RamosCriticos         []RamoCritico `json:"ramos_criticos"`
+	Mensaje               string                  `json:"mensaje"`
+	MetricasGlobales      MetricasGlobales        `json:"metricas_globales"`
+	DistribucionSemestres map[int]int             `json:"distribucion_semestres"`
+	RamosCriticos         []RamoCritico           `json:"ramos_criticos"`
+	HeatmapEstadoSemestre []HeatmapEstadoSemestre `json:"heatmap_estado_semestre"`
+	TransicionesEstado    []TransicionEstado      `json:"transiciones_estado"`
+	SensibilidadTornado   []SensibilidadParametro `json:"sensibilidad_tornado"`
 }
 
 // ==========================================
@@ -100,11 +127,11 @@ type SimulacionResponse struct {
 // ==========================================
 
 type Usuario struct {
-	ID           string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	Email        string    `gorm:"uniqueIndex;not null"`
-	PasswordHash string    `gorm:"not null"`
-	IsApproved   bool      `gorm:"default:false"`
-	IsAdmin      bool      `gorm:"default:false"`
+	ID           string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	Email        string `gorm:"uniqueIndex;not null"`
+	PasswordHash string `gorm:"not null"`
+	IsApproved   bool   `gorm:"default:false"`
+	IsAdmin      bool   `gorm:"default:false"`
 	CreatedAt    time.Time
 }
 
@@ -127,6 +154,9 @@ type ResultadoSimulacionDB struct {
 	MetricasJSON      string    `gorm:"type:jsonb;not null" json:"-"`
 	DistribucionJSON  string    `gorm:"type:jsonb" json:"-"`
 	RamosCriticosJSON string    `gorm:"type:jsonb" json:"-"`
+	HeatmapJSON       string    `gorm:"type:jsonb" json:"-"`
+	TransicionesJSON  string    `gorm:"type:jsonb" json:"-"`
+	SensibilidadJSON  string    `gorm:"type:jsonb" json:"-"`
 	VariablesJSON     string    `gorm:"type:jsonb" json:"-"`
 	ModeloJSON        string    `gorm:"type:jsonb" json:"-"`
 	CreatedAt         time.Time `json:"created_at"`

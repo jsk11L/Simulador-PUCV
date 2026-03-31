@@ -92,6 +92,9 @@ func SimularHandler(c *gin.Context) {
 		metricasBytes, _ := json.Marshal(resultados.MetricasGlobales)
 		distBytes, _ := json.Marshal(resultados.DistribucionSemestres)
 		ramosBytes, _ := json.Marshal(resultados.RamosCriticos)
+		heatmapBytes, _ := json.Marshal(resultados.HeatmapEstadoSemestre)
+		transicionesBytes, _ := json.Marshal(resultados.TransicionesEstado)
+		sensibilidadBytes, _ := json.Marshal(resultados.SensibilidadTornado)
 		varsBytes, _ := json.Marshal(req.Variables)
 		modeloBytes, _ := json.Marshal(req.Modelo)
 
@@ -115,17 +118,23 @@ func SimularHandler(c *gin.Context) {
 			MetricasJSON:      string(metricasBytes),
 			DistribucionJSON:  string(distBytes),
 			RamosCriticosJSON: string(ramosBytes),
+			HeatmapJSON:       string(heatmapBytes),
+			TransicionesJSON:  string(transicionesBytes),
+			SensibilidadJSON:  string(sensibilidadBytes),
 			VariablesJSON:     string(varsBytes),
 			ModeloJSON:        string(modeloBytes),
 		}
 		DB.Create(&resDB)
 
 		c.JSON(http.StatusOK, gin.H{
-			"resultado_id":           resDB.ID,
-			"mensaje":                resultados.Mensaje,
-			"metricas_globales":      resultados.MetricasGlobales,
-			"distribucion_semestres": resultados.DistribucionSemestres,
-			"ramos_criticos":         resultados.RamosCriticos,
+			"resultado_id":            resDB.ID,
+			"mensaje":                 resultados.Mensaje,
+			"metricas_globales":       resultados.MetricasGlobales,
+			"distribucion_semestres":  resultados.DistribucionSemestres,
+			"ramos_criticos":          resultados.RamosCriticos,
+			"heatmap_estado_semestre": resultados.HeatmapEstadoSemestre,
+			"transiciones_estado":     resultados.TransicionesEstado,
+			"sensibilidad_tornado":    resultados.SensibilidadTornado,
 		})
 		return
 	}
@@ -142,8 +151,8 @@ func CrearMallaHandler(c *gin.Context) {
 	uid := usuarioID.(string)
 
 	var body struct {
-		Nombre         string                    `json:"nombre" binding:"required"`
-		TotalSemestres int                       `json:"total_semestres"`
+		Nombre         string                     `json:"nombre" binding:"required"`
+		TotalSemestres int                        `json:"total_semestres"`
 		Asignaturas    []models.AsignaturaPayload `json:"asignaturas" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -179,12 +188,12 @@ func ListarMallasHandler(c *gin.Context) {
 	DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallas)
 
 	type MallaResponse struct {
-		ID             string                    `json:"id"`
-		Nombre         string                    `json:"nombre"`
-		TotalSemestres int                       `json:"total_semestres"`
+		ID             string                     `json:"id"`
+		Nombre         string                     `json:"nombre"`
+		TotalSemestres int                        `json:"total_semestres"`
 		Asignaturas    []models.AsignaturaPayload `json:"asignaturas"`
-		CreatedAt      time.Time                 `json:"created_at"`
-		UpdatedAt      time.Time                 `json:"updated_at"`
+		CreatedAt      time.Time                  `json:"created_at"`
+		UpdatedAt      time.Time                  `json:"updated_at"`
 	}
 
 	var resp []MallaResponse
@@ -240,8 +249,8 @@ func ActualizarMallaHandler(c *gin.Context) {
 	}
 
 	var body struct {
-		Nombre         string                    `json:"nombre"`
-		TotalSemestres int                       `json:"total_semestres"`
+		Nombre         string                     `json:"nombre"`
+		TotalSemestres int                        `json:"total_semestres"`
 		Asignaturas    []models.AsignaturaPayload `json:"asignaturas"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -289,12 +298,12 @@ func ListarResultadosHandler(c *gin.Context) {
 	DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultados)
 
 	type ResultadoListItem struct {
-		ID               string                `json:"id"`
-		MallaNombre      string                `json:"malla_nombre"`
-		TotalAsignaturas int                   `json:"total_asignaturas"`
-		TotalSemestres   int                   `json:"total_semestres"`
+		ID               string                  `json:"id"`
+		MallaNombre      string                  `json:"malla_nombre"`
+		TotalAsignaturas int                     `json:"total_asignaturas"`
+		TotalSemestres   int                     `json:"total_semestres"`
 		Metricas         models.MetricasGlobales `json:"metricas_globales"`
-		CreatedAt        time.Time             `json:"created_at"`
+		CreatedAt        time.Time               `json:"created_at"`
 	}
 
 	var resp []ResultadoListItem
@@ -328,26 +337,35 @@ func ObtenerResultadoHandler(c *gin.Context) {
 	var metricas models.MetricasGlobales
 	var distribucion map[int]int
 	var ramosCriticos []models.RamoCritico
+	var heatmap []models.HeatmapEstadoSemestre
+	var transiciones []models.TransicionEstado
+	var sensibilidad []models.SensibilidadParametro
 	var variables models.VariablesPayload
 	var modelo models.ModeloPayload
 
 	json.Unmarshal([]byte(res.MetricasJSON), &metricas)
 	json.Unmarshal([]byte(res.DistribucionJSON), &distribucion)
 	json.Unmarshal([]byte(res.RamosCriticosJSON), &ramosCriticos)
+	json.Unmarshal([]byte(res.HeatmapJSON), &heatmap)
+	json.Unmarshal([]byte(res.TransicionesJSON), &transiciones)
+	json.Unmarshal([]byte(res.SensibilidadJSON), &sensibilidad)
 	json.Unmarshal([]byte(res.VariablesJSON), &variables)
 	json.Unmarshal([]byte(res.ModeloJSON), &modelo)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":                     res.ID,
-		"malla_nombre":           res.MallaNombre,
-		"total_asignaturas":      res.TotalAsignaturas,
-		"total_semestres":        res.TotalSemestres,
-		"metricas_globales":      metricas,
-		"distribucion_semestres": distribucion,
-		"ramos_criticos":         ramosCriticos,
-		"variables":              variables,
-		"modelo":                 modelo,
-		"created_at":             res.CreatedAt,
+		"id":                      res.ID,
+		"malla_nombre":            res.MallaNombre,
+		"total_asignaturas":       res.TotalAsignaturas,
+		"total_semestres":         res.TotalSemestres,
+		"metricas_globales":       metricas,
+		"distribucion_semestres":  distribucion,
+		"ramos_criticos":          ramosCriticos,
+		"heatmap_estado_semestre": heatmap,
+		"transiciones_estado":     transiciones,
+		"sensibilidad_tornado":    sensibilidad,
+		"variables":               variables,
+		"modelo":                  modelo,
+		"created_at":              res.CreatedAt,
 	})
 }
 
@@ -364,11 +382,11 @@ func ExportarDatosHandler(c *gin.Context) {
 	DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallasDB)
 
 	type MallaExp struct {
-		ID             string                    `json:"id"`
-		Nombre         string                    `json:"nombre"`
-		TotalSemestres int                       `json:"total_semestres"`
+		ID             string                     `json:"id"`
+		Nombre         string                     `json:"nombre"`
+		TotalSemestres int                        `json:"total_semestres"`
 		Asignaturas    []models.AsignaturaPayload `json:"asignaturas"`
-		CreatedAt      time.Time                 `json:"created_at"`
+		CreatedAt      time.Time                  `json:"created_at"`
 	}
 
 	var mallas []MallaExp
@@ -386,16 +404,19 @@ func ExportarDatosHandler(c *gin.Context) {
 	DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultadosDB)
 
 	type ResultadoExp struct {
-		ID               string                `json:"id"`
-		MallaNombre      string                `json:"malla_nombre"`
-		TotalAsignaturas int                   `json:"total_asignaturas"`
-		TotalSemestres   int                   `json:"total_semestres"`
-		Metricas         models.MetricasGlobales `json:"metricas_globales"`
-		Distribucion     map[int]int           `json:"distribucion_semestres"`
-		RamosCriticos    []models.RamoCritico   `json:"ramos_criticos"`
-		Variables        models.VariablesPayload `json:"variables"`
-		Modelo           models.ModeloPayload   `json:"modelo"`
-		CreatedAt        time.Time             `json:"created_at"`
+		ID               string                         `json:"id"`
+		MallaNombre      string                         `json:"malla_nombre"`
+		TotalAsignaturas int                            `json:"total_asignaturas"`
+		TotalSemestres   int                            `json:"total_semestres"`
+		Metricas         models.MetricasGlobales        `json:"metricas_globales"`
+		Distribucion     map[int]int                    `json:"distribucion_semestres"`
+		RamosCriticos    []models.RamoCritico           `json:"ramos_criticos"`
+		Heatmap          []models.HeatmapEstadoSemestre `json:"heatmap_estado_semestre"`
+		Transiciones     []models.TransicionEstado      `json:"transiciones_estado"`
+		Sensibilidad     []models.SensibilidadParametro `json:"sensibilidad_tornado"`
+		Variables        models.VariablesPayload        `json:"variables"`
+		Modelo           models.ModeloPayload           `json:"modelo"`
+		CreatedAt        time.Time                      `json:"created_at"`
 	}
 
 	var resultados []ResultadoExp
@@ -403,12 +424,18 @@ func ExportarDatosHandler(c *gin.Context) {
 		var metricas models.MetricasGlobales
 		var dist map[int]int
 		var ramos []models.RamoCritico
+		var heatmap []models.HeatmapEstadoSemestre
+		var transiciones []models.TransicionEstado
+		var sensibilidad []models.SensibilidadParametro
 		var vars models.VariablesPayload
 		var mod models.ModeloPayload
 
 		json.Unmarshal([]byte(r.MetricasJSON), &metricas)
 		json.Unmarshal([]byte(r.DistribucionJSON), &dist)
 		json.Unmarshal([]byte(r.RamosCriticosJSON), &ramos)
+		json.Unmarshal([]byte(r.HeatmapJSON), &heatmap)
+		json.Unmarshal([]byte(r.TransicionesJSON), &transiciones)
+		json.Unmarshal([]byte(r.SensibilidadJSON), &sensibilidad)
 		json.Unmarshal([]byte(r.VariablesJSON), &vars)
 		json.Unmarshal([]byte(r.ModeloJSON), &mod)
 
@@ -416,13 +443,15 @@ func ExportarDatosHandler(c *gin.Context) {
 			ID: r.ID, MallaNombre: r.MallaNombre,
 			TotalAsignaturas: r.TotalAsignaturas, TotalSemestres: r.TotalSemestres,
 			Metricas: metricas, Distribucion: dist, RamosCriticos: ramos,
-			Variables: vars, Modelo: mod, CreatedAt: r.CreatedAt,
+			Heatmap: heatmap, Transiciones: transiciones,
+			Sensibilidad: sensibilidad,
+			Variables:    vars, Modelo: mod, CreatedAt: r.CreatedAt,
 		})
 	}
 
 	exportData := gin.H{
-		"exportado_en": time.Now().Format(time.RFC3339),
-		"plataforma":   "SimulaPUCV",
+		"exportado_en":     time.Now().Format(time.RFC3339),
+		"plataforma":       "SimulaPUCV",
 		"total_mallas":     len(mallas),
 		"total_resultados": len(resultados),
 		"mallas":           mallas,

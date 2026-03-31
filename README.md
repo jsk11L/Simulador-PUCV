@@ -1,89 +1,94 @@
 # SimulaPUCV
 
-Plataforma SaaS para simulación curricular de Ingeniería Civil Eléctrica PUCV, basada en Montecarlo y orientada a análisis de trayectoria académica.
+Plataforma de simulación curricular para Ingeniería Civil Eléctrica PUCV, basada en Montecarlo y alineada con la lógica del modelo original en MATLAB.
 
-Estado general: casi completado (cierre de fase final en curso).
+Estado general: casi completado, con foco actual en validación metodológica fina, mejoras de visualización y hardening de producto.
 
-## Estado actual del proyecto
+## Estado actual
 
-### Implementado
-- Autenticación con registro/login y aprobación administrativa de usuarios.
-- Wizard de simulación en 5 pasos.
-- Diseño de malla con tablero tipo Kanban.
-- Carga de plantilla realista (8 semestres, 32 asignaturas).
-- Importación de mallas vía CSV (PapaParse).
-- Guardado/carga de mallas en PostgreSQL.
-- Motor Montecarlo en Go con concurrencia (worker pool).
-- Dashboard de resultados con KPIs, histograma y ramos críticos.
-- Historial de resultados y vista de último resultado.
-- Exportación de resultados en `.zip`.
-- Panel de administración de usuarios.
-- Tab de ayuda integrada en frontend.
+### Funcionalidades implementadas
+- Registro/login con JWT.
+- Aprobación de cuentas por panel administrador.
+- Wizard completo de simulación (5 fases).
+- Diseño de malla con tablero Kanban, edición por drawer, importación CSV y persistencia en BD.
+- Límite de semestres de malla configurado en 20.
+- Motor Montecarlo en Go con ejecución concurrente (worker pool).
+- Dashboard de resultados con KPIs, distribución de egreso y ramos críticos.
+- Historial de resultados, último resultado y log técnico.
+- Exportación ZIP de resultados y parámetros.
+- Vista de ayuda integrada.
 
-### No crítico y fuera de alcance inmediato
-- Recuperación de contraseña (forgot/reset): descartado temporalmente por prioridad funcional.
+### Fuera de alcance inmediato (decisión actual)
+- Recuperación de contraseña por email (se posterga por prioridad funcional).
 
-### Pendientes de cierre
-- Pulido responsive final en pantalla de creación de mallas.
-- Refactorización de `frontend/src/App.tsx` para reducir monolito.
-- Ajustes finales de limpieza y documentación.
-
-## Arquitectura
+## Arquitectura actual
 
 ```text
 Simulador-PUCV/
-├── README.md
-├── project_analysis.md.resolved
-├── original/
-│   ├── MallasV12.m
-│   ├── MatLab Original Code.md
-│   ├── Paper Resume.md
-│   └── XLSX File Description.md
 ├── backend/
 │   ├── main.go
 │   ├── engine/montecarlo.go
 │   ├── handlers/handlers.go
 │   ├── middleware/auth.go
 │   └── models/models.go
-└── frontend/
-    └── src/
-        ├── App.tsx
-        └── types.ts
+├── frontend/src/
+│   ├── App.tsx
+│   ├── types.ts
+│   ├── constants/wizard.ts
+│   ├── hooks/
+│   │   ├── useAuth.ts
+│   │   ├── useAppNavigation.ts
+│   │   ├── useWizardState.ts
+│   │   ├── useMallaEditorActions.ts
+│   │   ├── useMallaPersistence.ts
+│   │   ├── useSimulationActions.ts
+│   │   └── useSimulaApi.ts
+│   └── components/
+│       ├── AppSidebar.tsx
+│       ├── AppMainContent.tsx
+│       ├── MallaStep.tsx
+│       ├── VariablesStep.tsx
+│       ├── ModeloCalificacionesStep.tsx
+│       ├── ResumenStep.tsx
+│       ├── ResultadosStep.tsx
+│       └── ...
+├── original/
+│   ├── MallasV12.m
+│   ├── MatLab Original Code.md
+│   ├── Paper Resume.md
+│   └── XLSX File Description.md
+└── project_analysis.md.resolved
 ```
 
 ## Stack
 
-- Frontend: React 19, TypeScript 5.9, Vite 8, Tailwind v4
+- Frontend: React 19, TypeScript 5.9, Vite 8, Tailwind CSS v4
 - Backend: Go 1.26.1, Gin 1.12, GORM 1.31
-- Base de datos: PostgreSQL (pgx v5)
-- Seguridad: JWT + bcrypt
-- Librerías clave: lucide-react, PapaParse, JSZip
+- BD: PostgreSQL (pgx v5)
+- Auth: JWT + bcrypt
+- Librerías clave: PapaParse, JSZip, lucide-react
 
-## Endpoints principales
+## Endpoints activos
 
-- `POST /api/register`
-- `POST /api/login`
-- `POST /api/simular`
-- `POST /api/mallas`
-- `GET /api/mallas`
-- `PUT /api/mallas/:id`
-- `DELETE /api/mallas/:id`
-- `GET /api/resultados`
-- `GET /api/resultados/:id`
-- `GET /api/exportar`
-- `GET /api/admin/usuarios`
-- `PATCH /api/admin/usuarios/:id`
+- POST /api/register
+- POST /api/login
+- POST /api/simular
+- POST /api/mallas
+- GET /api/mallas
+- GET /api/mallas/:id
+- PUT /api/mallas/:id
+- DELETE /api/mallas/:id
+- GET /api/resultados
+- GET /api/resultados/:id
+- GET /api/exportar
+- GET /api/admin/usuarios
+- PATCH /api/admin/usuarios/:id
 
-## Fuente metodológica
+## Referencia metodológica
 
-El comportamiento objetivo del simulador se basa en los artefactos de `original/`:
-- Paper resumido
-- Script y lógica original en MATLAB
-- Descripción de datos históricos
+La referencia de comportamiento del simulador es el material de [original/MallasV12.m](original/MallasV12.m), [original/MatLab Original Code.md](original/MatLab Original Code.md) y [original/Paper Resume.md](original/Paper Resume.md).
 
-Estos documentos son la referencia para validar equivalencia del modelo y reglas académicas.
-
-## Ejecutar el proyecto
+## Ejecución local
 
 ### Requisitos
 - Node.js 20+
@@ -98,7 +103,7 @@ go mod tidy
 go run .
 ```
 
-Configura `backend/.env` con tu conexión a PostgreSQL y secreto JWT.
+Configurar variables en backend/.env (DSN y JWT_SECRET).
 
 ### Frontend
 
@@ -108,24 +113,21 @@ npm install
 npm run dev
 ```
 
-Por defecto el frontend consume `http://localhost:8080`.
-Puedes cambiarlo con `VITE_API_BASE_URL`.
+Frontend usa VITE_API_BASE_URL; por defecto apunta a http://localhost:8080.
 
-## Flujo recomendado de uso
+## Flujo recomendado
 
 1. Iniciar sesión.
-2. Crear malla: plantilla, CSV, guardada o en blanco.
-3. Ajustar variables de simulación.
-4. Ajustar modelo estocástico.
-5. Revisar resumen y ejecutar simulación.
-6. Analizar dashboard y descargar resultados.
+2. Crear o cargar malla (plantilla, CSV, guardada o en blanco).
+3. Definir variables de simulación.
+4. Ajustar modelo de calificaciones.
+5. Revisar resumen y ejecutar.
+6. Analizar resultados y exportar ZIP.
 
-## Riesgos técnicos conocidos
+## Riesgos y mejoras prioritarias
 
-- `App.tsx` aún concentra demasiada lógica y UI.
-- Sin suite de tests automatizados.
-- CORS wildcard para desarrollo (debe ajustarse en producción).
-
-## Próximo paso de desarrollo
-
-Refactor incremental de `App.tsx` en módulos (wizard, malla, resultados, admin, ayuda, hooks API/estado) manteniendo compatibilidad funcional total.
+- Validación fina de equivalencia MATLAB vs Go en reglas de programación/dictación.
+- Inclusión opcional de recuperación de cuenta por email.
+- Inclusión opcional de exportación de gráficos como imágenes dentro del ZIP.
+- Suite de pruebas automatizadas (backend motor + frontend flujos críticos).
+- Hardening de seguridad para producción (CORS y manejo de secretos).

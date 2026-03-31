@@ -73,12 +73,38 @@ export interface RamoCritico {
   tasa_fallo_pct: number;
 }
 
+export interface HeatmapEstadoSemestre {
+  semestre: number;
+  activos: number;
+  titulados: number;
+  eliminados_ta: number;
+  eliminados_opor: number;
+}
+
+export interface TransicionEstado {
+  semestre: number;
+  from: 'Activo' | 'Titulado' | 'EliminadoTAmin' | 'EliminadoOpor' | string;
+  to: 'Activo' | 'Titulado' | 'EliminadoTAmin' | 'EliminadoOpor' | string;
+  value: number;
+}
+
+export interface SensibilidadParametro {
+  parametro: string;
+  base: number;
+  menos_10: number;
+  mas_10: number;
+  impacto: number;
+}
+
 export interface SimulacionResponse {
   resultado_id?: string;
   mensaje: string;
   metricas_globales: MetricasGlobales;
   distribucion_semestres: Record<number, number>;
   ramos_criticos: RamoCritico[];
+  heatmap_estado_semestre?: HeatmapEstadoSemestre[];
+  transiciones_estado?: TransicionEstado[];
+  sensibilidad_tornado?: SensibilidadParametro[];
 }
 
 export interface ResultadoPasado {

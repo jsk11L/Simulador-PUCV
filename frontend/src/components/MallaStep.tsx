@@ -158,11 +158,11 @@ export default function MallaStep({
 
       <KanbanTopControls onScrollLeft={() => scrollKanban('left')} onScrollRight={() => scrollKanban('right')} />
 
-      <div className="flex-1 flex min-h-104 relative">
+      <div className="flex-1 flex min-h-0 relative">
         <div
           ref={kanbanScrollRef}
           onWheel={handleKanbanWheel}
-          className={`flex gap-4 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x flex-1 min-h-80 max-h-[58vh] pb-6 pr-1 transition-all duration-300 snap-x snap-mandatory ${selectedSubject ? 'sm:pr-[380px]' : ''}`}
+          className={`flex gap-3 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x flex-1 min-h-72 max-h-[48vh] sm:max-h-[52vh] pb-4 pr-1 transition-all duration-300 snap-x snap-mandatory ${selectedSubject ? 'sm:pr-90' : ''}`}
         >
           {Array.from({ length: totalSemestres }).map((_, i) => {
             const sem = i + 1;
@@ -170,7 +170,7 @@ export default function MallaStep({
             const canAdd = ramosDelSemestre.length < 10;
 
             return (
-              <div key={sem} className="min-w-[260px] max-w-[260px] sm:min-w-[280px] sm:max-w-[280px] bg-slate-100 border border-slate-200 rounded-xl p-3 flex flex-col shrink-0 relative snap-start self-start">
+              <div key={sem} className="min-w-60 max-w-60 sm:min-w-62.5 sm:max-w-62.5 bg-slate-100 border border-slate-200 rounded-xl p-3 flex flex-col shrink-0 relative snap-start self-start">
                 {sem === totalSemestres && sem > minSemestres && (
                   <button onClick={() => handleRemoveSemestre(sem)} className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition-colors" title="Eliminar Semestre">
                     <Trash2 size={16}/>
@@ -212,7 +212,7 @@ export default function MallaStep({
         </div>
 
         {selectedSubject && drawerSubject && (
-          <div className="fixed inset-0 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 w-full sm:w-[360px] bg-white border border-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.1)] rounded-none sm:rounded-xl flex flex-col z-30 animate-in slide-in-from-right-8 sm:mb-4">
+          <div className="fixed inset-0 sm:absolute sm:inset-auto sm:right-0 sm:top-0 sm:bottom-0 w-full sm:w-90 bg-white border border-slate-200 shadow-[0_0_40px_rgba(0,0,0,0.1)] rounded-none sm:rounded-xl flex flex-col z-30 animate-in slide-in-from-right-8 sm:mb-4">
             <div className="bg-slate-900 text-white p-5 flex justify-between items-center rounded-t-xl shrink-0">
               <div className="flex-1 mr-4">
                 <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Editar Asignatura</span>
