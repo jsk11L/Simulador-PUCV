@@ -1,6 +1,6 @@
 module github.com/jsk11L/Simulador-PUCV
 
-go 1.26.1
+go 1.26.0
 
 require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
