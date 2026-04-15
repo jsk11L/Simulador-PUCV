@@ -2,8 +2,6 @@ import { Menu } from 'lucide-react';
 import type { ActiveTab, Asignatura, ModeloCalificaciones, ResultadoPasado, SimulacionResponse, VariablesSimulacion, MallaGuardada, AdminUsuario } from '../types';
 import WizardStepIndicator from './WizardStepIndicator';
 import MallaStep from './MallaStep';
-import VariablesStep from './VariablesStep';
-import ModeloCalificacionesStep from './ModeloCalificacionesStep';
 import ResumenStep from './ResumenStep';
 import ResultadosStep from './ResultadosStep';
 import MallasGuardadasView from './MallasGuardadasView';
@@ -14,7 +12,7 @@ import AdminView from './AdminView';
 import HelpView from './HelpView';
 import type { Dispatch, RefObject, SetStateAction, WheelEventHandler } from 'react';
 
-type WizardStep = 1 | 2 | 3 | 4 | 5;
+type WizardStep = 1 | 2 | 3;
 
 interface AppMainContentProps {
   activeTab: ActiveTab;
@@ -143,6 +141,8 @@ export default function AppMainContent({
           selectedSubject={selectedSubject}
           drawerSubject={drawerSubject}
           mallaErrorMsg={mallaErrorMsg}
+          variables={variables}
+          modeloCalif={modeloCalif}
           minSemestres={minSemestres}
           maxSemestres={maxSemestres}
           fileInputRef={fileInputRef}
@@ -157,6 +157,8 @@ export default function AppMainContent({
             setShowMallasGuardadasModal,
             setSelectedSubject,
             setDrawerSubject,
+            setVariables,
+            setModeloCalif,
           }}
           actions={{
             handleGuardarMallaClick,
@@ -181,35 +183,13 @@ export default function AppMainContent({
 
     if (wizardStep === 2) {
       return (
-        <VariablesStep
-          variables={variables}
-          setVariables={setVariables}
-          onBack={() => setWizardStep(1)}
-          onNext={() => setWizardStep(3)}
-        />
-      );
-    }
-
-    if (wizardStep === 3) {
-      return (
-        <ModeloCalificacionesStep
-          modeloCalif={modeloCalif}
-          setModeloCalif={setModeloCalif}
-          onBack={() => setWizardStep(2)}
-          onNext={() => setWizardStep(4)}
-        />
-      );
-    }
-
-    if (wizardStep === 4) {
-      return (
         <ResumenStep
           nombreMalla={nombreMalla}
           malla={malla}
           totalSemestres={totalSemestres}
           variables={variables}
           modeloCalif={modeloCalif}
-          onBack={() => setWizardStep(3)}
+          onBack={() => setWizardStep(1)}
           onRunSimulation={handleRunSimulation}
         />
       );
@@ -263,7 +243,7 @@ export default function AppMainContent({
           modeloCalif={modeloCalif}
           onVerDashboardCompleto={() => {
             setActiveTab('wizard');
-            setWizardStep(5);
+            setWizardStep(3);
           }}
         />
       )}

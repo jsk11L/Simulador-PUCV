@@ -9,7 +9,7 @@ interface ResultadosStepProps {
   modeloCalif: ModeloCalificaciones;
   malla: Asignatura[];
   handleDownloadZip: () => void;
-  setWizardStep: (step: 1 | 2 | 3 | 4 | 5) => void;
+  setWizardStep: (step: 1 | 2 | 3) => void;
   handleRunSimulation: () => void;
 }
 
@@ -144,7 +144,7 @@ export default function ResultadosStep({
           <button onClick={handleDownloadZip} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all text-xs sm:text-sm animate-pulse hover:animate-none">
             <Download size={16} /> Descargar (.zip)
           </button>
-          <button onClick={() => setWizardStep(4)} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs sm:text-sm">
+          <button onClick={() => setWizardStep(2)} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs sm:text-sm">
             <ArrowLeft size={16} /> Volver
           </button>
         </div>
@@ -453,7 +453,7 @@ export default function ResultadosStep({
       </details>
 
       <div className="flex justify-between pt-3 border-t border-slate-200 shrink-0 mb-4">
-        <button onClick={() => setWizardStep(4)} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all"><ArrowLeft size={18} /> Modificar Parámetros</button>
+        <button onClick={() => setWizardStep(2)} className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 px-8 py-3 rounded-xl font-bold flex items-center gap-2 transition-all"><ArrowLeft size={18} /> Volver al Resumen</button>
         <button onClick={handleRunSimulation} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-blue-500/30 transition-all"><Play size={18} /> Ejecutar de Nuevo</button>
       </div>
       </div>

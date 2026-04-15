@@ -7,18 +7,16 @@ interface Step {
 }
 
 interface WizardStepIndicatorProps {
-  wizardStep: 1 | 2 | 3 | 4 | 5;
+  wizardStep: 1 | 2 | 3;
 }
 
 const steps: Step[] = [
   { num: 1, label: 'Diseño de Malla' },
-  { num: 2, label: 'Variables de Simulación' },
-  { num: 3, label: 'Modelo de Calificaciones' },
-  { num: 4, label: 'Resumen y Verificación' },
+  { num: 2, label: 'Resumen y Verificación' },
 ];
 
 export default function WizardStepIndicator({ wizardStep }: WizardStepIndicatorProps) {
-  if (wizardStep === 5) return null;
+  if (wizardStep === 3) return null;
 
   return (
     <div className="flex items-center justify-center w-full max-w-4xl mx-auto py-4 sm:py-6 mb-8 sm:mb-12">
@@ -34,7 +32,7 @@ export default function WizardStepIndicator({ wizardStep }: WizardStepIndicatorP
             }`}>
               {wizardStep > step.num ? <CheckCircle2 size={16} /> : step.num}
             </div>
-            <span className={`absolute top-10 sm:top-12 text-[9px] sm:text-[11px] uppercase tracking-wider font-bold w-max max-w-[80px] sm:max-w-[140px] text-center hidden sm:block ${
+            <span className={`absolute top-10 sm:top-12 text-[9px] sm:text-[11px] uppercase tracking-wider font-bold w-max max-w-20 sm:max-w-35 text-center hidden sm:block ${
               wizardStep === step.num
                 ? 'text-blue-700'
                 : wizardStep > step.num

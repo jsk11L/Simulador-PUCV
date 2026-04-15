@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Asignatura, ModeloCalificaciones, SimulacionResponse, VariablesSimulacion } from '../types';
 import { MIN_SEMESTRES } from '../constants/wizard';
 
@@ -21,8 +21,33 @@ const DEFAULT_MODELO_CALIF: ModeloCalificaciones = {
   deltam: 0.25,
 };
 
+const VARIABLES_STORAGE_KEY = 'simulapucv:variables_global';
+const MODELO_STORAGE_KEY = 'simulapucv:modelo_calif_global';
+
+const loadStoredVariables = (): VariablesSimulacion => {
+  try {
+    const raw = localStorage.getItem(VARIABLES_STORAGE_KEY);
+    if (!raw) return DEFAULT_VARIABLES;
+    const parsed = JSON.parse(raw) as Partial<VariablesSimulacion>;
+    return { ...DEFAULT_VARIABLES, ...parsed };
+  } catch {
+    return DEFAULT_VARIABLES;
+  }
+};
+
+const loadStoredModelo = (): ModeloCalificaciones => {
+  try {
+    const raw = localStorage.getItem(MODELO_STORAGE_KEY);
+    if (!raw) return DEFAULT_MODELO_CALIF;
+    const parsed = JSON.parse(raw) as Partial<ModeloCalificaciones>;
+    return { ...DEFAULT_MODELO_CALIF, ...parsed };
+  } catch {
+    return DEFAULT_MODELO_CALIF;
+  }
+};
+
 export default function useWizardState() {
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simResults, setSimResults] = useState<SimulacionResponse | null>(null);
 
@@ -37,8 +62,16 @@ export default function useWizardState() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [currentMallaId, setCurrentMallaId] = useState<string | null>(null);
 
-  const [variables, setVariables] = useState<VariablesSimulacion>(DEFAULT_VARIABLES);
-  const [modeloCalif, setModeloCalif] = useState<ModeloCalificaciones>(DEFAULT_MODELO_CALIF);
+  const [variables, setVariables] = useState<VariablesSimulacion>(() => loadStoredVariables());
+  const [modeloCalif, setModeloCalif] = useState<ModeloCalificaciones>(() => loadStoredModelo());
+
+  useEffect(() => {
+    localStorage.setItem(VARIABLES_STORAGE_KEY, JSON.stringify(variables));
+  }, [variables]);
+
+  useEffect(() => {
+    localStorage.setItem(MODELO_STORAGE_KEY, JSON.stringify(modeloCalif));
+  }, [modeloCalif]);
 
   const resetWizardDraft = () => {
     setWizardStep(1);

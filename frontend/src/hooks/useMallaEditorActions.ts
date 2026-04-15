@@ -147,8 +147,8 @@ export default function useMallaEditorActions({
       if (asig.cred <= 0) {
         errors.push(`Asignatura '${asig.id}' (Semestre ${asig.semestre}): Debe tener mas de 0 creditos.`);
       }
-      if (asig.rep <= 0) {
-        errors.push(`Asignatura '${asig.id}' (Semestre ${asig.semestre}): Debe tener una tasa de reprobacion mayor a 0.`);
+      if (asig.rep < 0) {
+        errors.push(`Asignatura '${asig.id}' (Semestre ${asig.semestre}): La tasa de reprobacion no puede ser negativa.`);
       }
       if (!asig.dictacion) {
         errors.push(

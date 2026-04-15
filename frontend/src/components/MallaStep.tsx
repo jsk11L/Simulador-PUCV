@@ -1,9 +1,54 @@
-import { FileSpreadsheet, FilePlus, Copy, Search, LayoutGrid, Trash2, X, Save } from 'lucide-react';
-import type { RefObject, WheelEventHandler } from 'react';
-import type { Asignatura } from '../types';
+import { FileSpreadsheet, FilePlus, Copy, Search, LayoutGrid, Trash2, X, Save, Settings } from 'lucide-react';
+import { useState, type RefObject, type WheelEventHandler } from 'react';
+import type { Asignatura, ModeloCalificaciones, VariablesSimulacion } from '../types';
+import { ICE_PAPER_BASE_TEMPLATE } from '../constants/icePaperBaseTemplate';
 import KanbanTopControls from './KanbanTopControls';
 import KanbanBottomCta from './KanbanBottomCta';
 import KanbanAddSemesterCard from './KanbanAddSemesterCard';
+
+type PaperScenarioId =
+  | 'caso_actual'
+  | 'ci'
+  | 'ci2'
+  | 'pe'
+  | 'cas'
+  | 'nop6'
+  | 'r_10'
+  | 'r_mas_10'
+  | 'r_10_mat'
+  | 'r_10_gt_40'
+  | 'sin_req_mat117'
+  | 'sin_req_fis334'
+  | 'r_10_eie252_459'
+  | 'cuatro_as'
+  | 'pf';
+
+interface PaperScenarioPreset {
+  id: PaperScenarioId;
+  label: string;
+  summary: string;
+}
+
+const MATH_SUBJECT_IDS = new Set(['115', '116', '117', '133', '215']);
+const FOUR_AS_IDS = new Set(['252', '351', '446', '415']);
+
+const PAPER_SCENARIOS: PaperScenarioPreset[] = [
+  { id: 'caso_actual', label: 'Base histórica del plan DRA 92/93', summary: 'Malla original con tasas de reprobación históricas y programación base de docencia.' },
+  { id: 'ci', label: 'Escenario ideal de aprobación total', summary: 'Fuerza reprobación 0% en todas las asignaturas para validar techo teórico del modelo.' },
+  { id: 'ci2', label: 'Ideal con carga máxima extendida', summary: 'Igual que el ideal, pero sube NCSmax de 21 a 25 créditos por semestre.' },
+  { id: 'pe', label: 'Dictación estricta según paridad de malla', summary: 'Aproximación operativa: deja la oferta como anual para simular mayor rigidez de programación.' },
+  { id: 'cas', label: 'Oferta semestral completa', summary: 'Convierte todas las asignaturas a dictación semestral (ambos semestres).' },
+  { id: 'nop6', label: 'Mayor tolerancia de reprobaciones', summary: 'Mantiene la malla base y fija Opor en 6 oportunidades máximas.' },
+  { id: 'r_10', label: 'Mejora global en aprobación', summary: 'Reduce en 10% la reprobación de todas las asignaturas de la malla.' },
+  { id: 'r_mas_10', label: 'Deterioro global en aprobación', summary: 'Aumenta en 10% la reprobación de todas las asignaturas de la malla.' },
+  { id: 'r_10_mat', label: 'Mejora focalizada en matemáticas', summary: 'Reduce en 10% la reprobación solo en ramos matemáticos base.' },
+  { id: 'r_10_gt_40', label: 'Mejora en ramos críticos', summary: 'Reduce en 10% la reprobación de asignaturas con tasa superior al 40%.' },
+  { id: 'sin_req_mat117', label: 'Desbloqueo curricular en MAT117', summary: 'Elimina prerrequisitos de MAT117 para probar su efecto en flujo de avance.' },
+  { id: 'sin_req_fis334', label: 'Desbloqueo curricular en FIS334', summary: 'Elimina prerrequisitos de FIS334 para medir sensibilidad del cuello de botella.' },
+  { id: 'r_10_eie252_459', label: 'Intervención puntual en EIE252 y EIE459', summary: 'Reduce en 10% la reprobación solo en esas dos asignaturas objetivo.' },
+  { id: 'cuatro_as', label: 'Ajuste de dictación en 4 asignaturas', summary: 'Pasa EIE252, EIE351, EIE446 e ICA415 a dictación semestral.' },
+  { id: 'pf', label: 'Propuesta final compuesta del paper', summary: 'Combina mejora en ramos críticos, 4AS y aumento de NCSmax a 25 créditos.' },
+];
 
 interface MallaStepProps {
   mallaSetupMode: string | null;
@@ -14,6 +59,8 @@ interface MallaStepProps {
   selectedSubject: Asignatura | null;
   drawerSubject: Asignatura | null;
   mallaErrorMsg: string;
+  variables: VariablesSimulacion;
+  modeloCalif: ModeloCalificaciones;
   minSemestres: number;
   maxSemestres: number;
   fileInputRef: RefObject<HTMLInputElement | null>;
@@ -28,6 +75,8 @@ interface MallaStepProps {
     setShowMallasGuardadasModal: (show: boolean) => void;
     setSelectedSubject: (subject: Asignatura | null) => void;
     setDrawerSubject: (subject: Asignatura | null) => void;
+    setVariables: (updater: VariablesSimulacion | ((prev: VariablesSimulacion) => VariablesSimulacion)) => void;
+    setModeloCalif: (updater: ModeloCalificaciones | ((prev: ModeloCalificaciones) => ModeloCalificaciones)) => void;
   };
   actions: {
     handleGuardarMallaClick: () => void;
@@ -57,6 +106,8 @@ export default function MallaStep({
   selectedSubject,
   drawerSubject,
   mallaErrorMsg,
+  variables,
+  modeloCalif,
   minSemestres,
   maxSemestres,
   fileInputRef,
@@ -74,6 +125,8 @@ export default function MallaStep({
     setShowMallasGuardadasModal,
     setSelectedSubject,
     setDrawerSubject,
+    setVariables,
+    setModeloCalif,
   } = setters;
 
   const {
@@ -94,6 +147,105 @@ export default function MallaStep({
     validateIntegrityAndNext,
   } = actions;
 
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [expandedCareer, setExpandedCareer] = useState<string | null>(null);
+
+  const cloneBaseMalla = () => ICE_PAPER_BASE_TEMPLATE.map((a) => ({ ...a, reqs: [...a.reqs] }));
+
+  const scaleFailRate = (value: number, factor: number) => Math.max(0, Math.min(1, Number((value * factor).toFixed(4))));
+
+  const applyPaperScenario = (scenarioId: PaperScenarioId) => {
+    let template = cloneBaseMalla();
+    let ncsmaxOverride: number | null = null;
+    let oporOverride: number | null = null;
+
+    switch (scenarioId) {
+      case 'ci':
+      case 'ci2':
+        template = template.map((a) => ({ ...a, rep: 0 }));
+        if (scenarioId === 'ci2') ncsmaxOverride = 25;
+        break;
+      case 'pe':
+        template = template.map((a) => ({ ...a, dictacion: 'anual' }));
+        break;
+      case 'cas':
+        template = template.map((a) => ({ ...a, dictacion: 'semestral' }));
+        break;
+      case 'nop6':
+        oporOverride = 6;
+        break;
+      case 'r_10':
+        template = template.map((a) => ({ ...a, rep: scaleFailRate(a.rep, 0.9) }));
+        break;
+      case 'r_mas_10':
+        template = template.map((a) => ({ ...a, rep: scaleFailRate(a.rep, 1.1) }));
+        break;
+      case 'r_10_mat':
+        template = template.map((a) => ({ ...a, rep: MATH_SUBJECT_IDS.has(a.id) ? scaleFailRate(a.rep, 0.9) : a.rep }));
+        break;
+      case 'r_10_gt_40':
+        template = template.map((a) => ({ ...a, rep: a.rep > 0.4 ? scaleFailRate(a.rep, 0.9) : a.rep }));
+        break;
+      case 'sin_req_mat117':
+        template = template.map((a) => ({ ...a, reqs: a.id === '117' ? [] : a.reqs }));
+        break;
+      case 'sin_req_fis334':
+        template = template.map((a) => ({ ...a, reqs: a.id === '334' ? [] : a.reqs }));
+        break;
+      case 'r_10_eie252_459':
+        template = template.map((a) => ({ ...a, rep: a.id === '252' || a.id === '459' ? scaleFailRate(a.rep, 0.9) : a.rep }));
+        break;
+      case 'cuatro_as':
+        template = template.map((a) => ({ ...a, dictacion: FOUR_AS_IDS.has(a.id) ? 'semestral' : a.dictacion }));
+        break;
+      case 'pf':
+        template = template.map((a) => {
+          const withReprob = a.rep > 0.4 ? scaleFailRate(a.rep, 0.9) : a.rep;
+          return {
+            ...a,
+            rep: withReprob,
+            dictacion: FOUR_AS_IDS.has(a.id) ? 'semestral' : a.dictacion,
+          };
+        });
+        ncsmaxOverride = 25;
+        break;
+      case 'caso_actual':
+      default:
+        break;
+    }
+
+    if (ncsmaxOverride !== null || oporOverride !== null) {
+      setVariables((prev) => ({
+        ...prev,
+        ...(ncsmaxOverride !== null ? { ncsmax: ncsmaxOverride } : {}),
+        ...(oporOverride !== null ? { opor: oporOverride } : {}),
+      }));
+    }
+
+    const selectedScenario = PAPER_SCENARIOS.find((s) => s.id === scenarioId);
+
+    setMalla(template);
+    setTotalSemestres(12);
+    setNombreMalla(`ICE DRA 92/93 - ${selectedScenario?.label || scenarioId}`);
+    setCurrentMallaId(null);
+    setEstadoGuardado('SIN GUARDAR');
+    setMallaSetupMode(`paper_${scenarioId}`);
+    setShowTemplatesModal(false);
+  };
+
+  const updateVariable = (key: keyof VariablesSimulacion, value: string) => {
+    const parsedValue = Number(value);
+    if (Number.isNaN(parsedValue)) return;
+    setVariables((prev) => ({ ...prev, [key]: parsedValue }));
+  };
+
+  const updateModelo = (key: keyof ModeloCalificaciones, value: string) => {
+    const parsedValue = Number(value);
+    if (Number.isNaN(parsedValue)) return;
+    setModeloCalif((prev) => ({ ...prev, [key]: parsedValue }));
+  };
+
   if (!mallaSetupMode) {
     return (
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
@@ -103,9 +255,9 @@ export default function MallaStep({
             <p className="text-slate-400 mt-2 text-sm">Elige el punto de partida para configurar las asignaturas.</p>
           </div>
           <div className="p-8 grid grid-cols-2 gap-6">
-            <button onClick={() => setMallaSetupMode('plantilla_10me')} className="flex flex-col items-center text-center p-6 border-2 border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
+            <button onClick={() => setShowTemplatesModal(true)} className="flex flex-col items-center text-center p-6 border-2 border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4"><Copy size={28} className="text-blue-600" /></div>
-              <h3 className="font-bold text-slate-800 text-lg">Plantilla 10me / 10ma</h3>
+              <h3 className="font-bold text-slate-800 text-lg">Plantillas</h3>
             </button>
             <button onClick={handleImportCSV} className="flex flex-col items-center text-center p-6 border-2 border-slate-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all group">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4"><FileSpreadsheet size={28} className="text-green-600" /></div>
@@ -127,6 +279,48 @@ export default function MallaStep({
             </button>
           </div>
         </div>
+
+        {showTemplatesModal && (
+          <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white w-[min(960px,96vw)] h-[min(780px,92vh)] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+              <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+                <h3 className="text-white font-bold text-lg">Plantillas por Carrera</h3>
+                <button onClick={() => setShowTemplatesModal(false)} className="text-slate-300 hover:text-white transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 flex-1 overflow-y-auto">
+                <button
+                  onClick={() => setExpandedCareer((prev) => (prev === 'ice' ? null : 'ice'))}
+                  className="w-full text-left border border-slate-200 rounded-xl p-4 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-6 h-6 rounded border border-slate-300 bg-white text-slate-900 text-xs font-bold inline-flex items-center justify-center">
+                      {expandedCareer === 'ice' ? '▼' : '▶'}
+                    </span>
+                    <span className="font-bold text-slate-900">Ingeniería Civil Eléctrica</span>
+                  </div>
+                </button>
+
+                {expandedCareer === 'ice' && (
+                  <div className="ml-6 border-l-2 border-slate-200 pl-4 space-y-3">
+                    {PAPER_SCENARIOS.map((scenario) => (
+                      <button
+                        key={scenario.id}
+                        onClick={() => applyPaperScenario(scenario.id)}
+                        className="w-full text-left p-3 rounded-lg border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="font-semibold text-sm text-slate-800">{scenario.label}</div>
+                        <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">{scenario.summary}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -147,6 +341,13 @@ export default function MallaStep({
           </span>
         </div>
         <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setShowConfigModal(true)}
+            className="text-sm font-semibold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded hover:bg-slate-200 transition-colors flex items-center gap-2"
+            title="Configuración global"
+          >
+            <Settings size={16} /> Configuración
+          </button>
           <button onClick={handleGuardarMallaClick} className="text-sm font-semibold text-white bg-slate-800 px-4 py-1.5 rounded hover:bg-slate-700 transition-colors flex items-center gap-2 shadow-sm">
             <Save size={16}/> Guardar Malla
           </button>
@@ -155,6 +356,73 @@ export default function MallaStep({
           </button>
         </div>
       </div>
+
+      {showConfigModal && (
+        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white max-w-3xl w-full rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="bg-slate-900 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold text-lg">Configuración Global de Simulación</h3>
+                <p className="text-slate-300 text-xs mt-1">Los cambios se guardan automáticamente y quedan persistidos para futuras simulaciones.</p>
+              </div>
+              <button onClick={() => setShowConfigModal(false)} className="text-slate-300 hover:text-white transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <section className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <h4 className="font-bold text-slate-800 mb-4">Variables de Simulación</h4>
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-500 uppercase">NE</label>
+                  <input type="number" value={variables.ne} onChange={(e) => updateVariable('ne', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">NCSmax</label>
+                  <input type="number" value={variables.ncsmax} onChange={(e) => updateVariable('ncsmax', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">TAmin</label>
+                  <input type="number" step="0.1" value={variables.tamin} onChange={(e) => updateVariable('tamin', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">NapTAmin</label>
+                  <input type="number" value={variables.naptamin} onChange={(e) => updateVariable('naptamin', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Opor</label>
+                  <input type="number" value={variables.opor} onChange={(e) => updateVariable('opor', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+                </div>
+              </section>
+
+              <section className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                <h4 className="font-bold text-slate-800 mb-4">Modelo de Calificaciones</h4>
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-500 uppercase">VMap1234</label>
+                  <input type="number" step="0.01" value={modeloCalif.vmap1234} onChange={(e) => updateModelo('vmap1234', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Delta1234</label>
+                  <input type="number" step="0.01" value={modeloCalif.delta1234} onChange={(e) => updateModelo('delta1234', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">VMap5678</label>
+                  <input type="number" step="0.01" value={modeloCalif.vmap5678} onChange={(e) => updateModelo('vmap5678', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Delta5678</label>
+                  <input type="number" step="0.01" value={modeloCalif.delta5678} onChange={(e) => updateModelo('delta5678', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">VMapM</label>
+                  <input type="number" step="0.01" value={modeloCalif.vmapm} onChange={(e) => updateModelo('vmapm', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">DeltaM</label>
+                  <input type="number" step="0.01" value={modeloCalif.deltam} onChange={(e) => updateModelo('deltam', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+                </div>
+              </section>
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+              <button onClick={() => setShowConfigModal(false)} className="bg-slate-800 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-slate-700 transition-colors">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <KanbanTopControls onScrollLeft={() => scrollKanban('left')} onScrollRight={() => scrollKanban('right')} />
 

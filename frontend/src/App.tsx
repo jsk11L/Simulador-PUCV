@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
 } from 'lucide-react';
 import type { AdminUsuario, MallaGuardada, MallaGuardadaApi, ResultadoPasado } from './types';
@@ -167,62 +167,6 @@ export default function App() {
   });
 
   // ==========================================
-  // EFECTOS
-  // ==========================================
-
-
-  useEffect(() => {
-    if (mallaSetupMode === 'plantilla_10me' && malla.length === 0) {
-      setMalla([
-        // Semestre 1 — Ciencias Básicas
-        { id: 'MAT-101', cred: 6, rep: 0.53, reqs: [], semestre: 1, dictacion: 'semestral' },
-        { id: 'FIS-101', cred: 5, rep: 0.48, reqs: [], semestre: 1, dictacion: 'semestral' },
-        { id: 'QUI-101', cred: 4, rep: 0.40, reqs: [], semestre: 1, dictacion: 'semestral' },
-        { id: 'INF-101', cred: 4, rep: 0.35, reqs: [], semestre: 1, dictacion: 'semestral' },
-        // Semestre 2 — Ciencias Básicas II
-        { id: 'MAT-201', cred: 6, rep: 0.51, reqs: ['MAT-101'], semestre: 2, dictacion: 'semestral' },
-        { id: 'FIS-201', cred: 5, rep: 0.46, reqs: ['FIS-101'], semestre: 2, dictacion: 'semestral' },
-        { id: 'ALG-201', cred: 5, rep: 0.50, reqs: ['MAT-101'], semestre: 2, dictacion: 'anual' },
-        { id: 'INF-201', cred: 4, rep: 0.32, reqs: ['INF-101'], semestre: 2, dictacion: 'semestral' },
-        // Semestre 3 — Ciencias de la Ingeniería I
-        { id: 'MAT-301', cred: 5, rep: 0.49, reqs: ['MAT-201'], semestre: 3, dictacion: 'anual' },
-        { id: 'FIS-301', cred: 5, rep: 0.44, reqs: ['FIS-201', 'MAT-201'], semestre: 3, dictacion: 'anual' },
-        { id: 'EST-301', cred: 4, rep: 0.38, reqs: ['MAT-201'], semestre: 3, dictacion: 'semestral' },
-        { id: 'ING-301', cred: 4, rep: 0.30, reqs: ['INF-201'], semestre: 3, dictacion: 'semestral' },
-        // Semestre 4 — Ciencias de la Ingeniería II
-        { id: 'MAT-401', cred: 5, rep: 0.47, reqs: ['MAT-301'], semestre: 4, dictacion: 'anual' },
-        { id: 'ELE-401', cred: 5, rep: 0.45, reqs: ['FIS-301'], semestre: 4, dictacion: 'anual' },
-        { id: 'MEC-401', cred: 4, rep: 0.42, reqs: ['FIS-301', 'MAT-301'], semestre: 4, dictacion: 'semestral' },
-        { id: 'ING-401', cred: 4, rep: 0.28, reqs: ['ING-301', 'EST-301'], semestre: 4, dictacion: 'semestral' },
-        // Semestre 5 — Especialidad I
-        { id: 'ELE-501', cred: 5, rep: 0.43, reqs: ['ELE-401'], semestre: 5, dictacion: 'anual' },
-        { id: 'CTR-501', cred: 5, rep: 0.40, reqs: ['MAT-401', 'ELE-401'], semestre: 5, dictacion: 'anual' },
-        { id: 'TER-501', cred: 4, rep: 0.36, reqs: ['MEC-401'], semestre: 5, dictacion: 'semestral' },
-        { id: 'ADM-501', cred: 3, rep: 0.22, reqs: [], semestre: 5, dictacion: 'semestral' },
-        // Semestre 6 — Especialidad II
-        { id: 'ELE-601', cred: 5, rep: 0.41, reqs: ['ELE-501'], semestre: 6, dictacion: 'anual' },
-        { id: 'CTR-601', cred: 5, rep: 0.38, reqs: ['CTR-501'], semestre: 6, dictacion: 'anual' },
-        { id: 'POT-601', cred: 4, rep: 0.35, reqs: ['ELE-501', 'TER-501'], semestre: 6, dictacion: 'semestral' },
-        { id: 'ECO-601', cred: 3, rep: 0.20, reqs: ['ADM-501'], semestre: 6, dictacion: 'semestral' },
-        // Semestre 7 — Integración
-        { id: 'PRY-701', cred: 6, rep: 0.33, reqs: ['ELE-601', 'CTR-601'], semestre: 7, dictacion: 'anual' },
-        { id: 'ELE-701', cred: 5, rep: 0.37, reqs: ['ELE-601'], semestre: 7, dictacion: 'anual' },
-        { id: 'GES-701', cred: 3, rep: 0.18, reqs: ['ECO-601'], semestre: 7, dictacion: 'semestral' },
-        { id: 'LAB-701', cred: 3, rep: 0.25, reqs: ['POT-601'], semestre: 7, dictacion: 'semestral' },
-        // Semestre 8 — Titulación
-        { id: 'TIT-801', cred: 8, rep: 0.30, reqs: ['PRY-701'], semestre: 8, dictacion: 'semestral' },
-        { id: 'PRA-801', cred: 5, rep: 0.15, reqs: ['PRY-701', 'ELE-701'], semestre: 8, dictacion: 'semestral' },
-        { id: 'SEM-801', cred: 3, rep: 0.20, reqs: ['GES-701'], semestre: 8, dictacion: 'semestral' },
-        { id: 'ETI-801', cred: 2, rep: 0.10, reqs: [], semestre: 8, dictacion: 'semestral' },
-      ]);
-      setTotalSemestres(8);
-      setNombreMalla('Ingeniería Civil (Plantilla 8 Sem)');
-      setEstadoGuardado('SIN GUARDAR');
-      setCurrentMallaId(null);
-    }
-  }, [mallaSetupMode, malla.length, setCurrentMallaId, setEstadoGuardado, setMalla, setNombreMalla, setTotalSemestres]);
-
-  // ==========================================
   // EJECUCIÓN DE LA SIMULACIÓN
   // ==========================================
   const handleRunSimulation = async () => {
@@ -233,12 +177,12 @@ export default function App() {
       modeloCalif,
       onStart: () => {
         setIsSimulating(true);
-        setWizardStep(5);
+        setWizardStep(3);
       },
       onSuccess: (data) => setSimResults(data),
       onError: (message) => {
         alert('Error ejecutando la simulacion: ' + message);
-        setWizardStep(4);
+        setWizardStep(2);
       },
       onFinally: () => setIsSimulating(false),
       refreshResultadosPasados: fetchResultadosPasados,
