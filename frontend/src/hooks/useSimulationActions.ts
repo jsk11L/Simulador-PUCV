@@ -230,6 +230,7 @@ export default function useSimulationActions({ apiUrl }: UseSimulationActionsPar
       `TAmin (Avance Minimo): ${variables.tamin}`,
       `NapTAmin (Sem Aplicacion TAmin): ${variables.naptamin}`,
       `Opor (Oportunidades): ${variables.opor}`,
+      `Iteraciones Montecarlo: ${variables.iteraciones}`,
       '',
       '--- Modelo Estocastico ---',
       `Ciclo Basico (Sem 1-4): VMap=${modeloCalif.vmap1234}, Delta=${modeloCalif.delta1234}`,

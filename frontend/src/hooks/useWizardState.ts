@@ -10,6 +10,7 @@ const DEFAULT_VARIABLES: VariablesSimulacion = {
   tamin: 12.3,
   naptamin: 10,
   opor: 6,
+  iteraciones: 15000,
 };
 
 const DEFAULT_MODELO_CALIF: ModeloCalificaciones = {

@@ -14,7 +14,7 @@ export default function LogView({ simResults, nombreMalla, malla }: LogViewProps
         <FileText size={28} className="text-slate-600" />
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Log de Datos (JSON)</h2>
-          {simResults && <p className="text-sm text-slate-500">Malla: {nombreMalla} · {malla.length} asignaturas · {simResults.metricas_globales?.alumnos_simulados} alumnos</p>}
+          {simResults && <p className="text-sm text-slate-500">Malla: {nombreMalla} · {malla.length} asignaturas · {simResults.metricas_globales?.alumnos_simulados} alumnos por iteración</p>}
         </div>
       </div>
       {simResults ? (

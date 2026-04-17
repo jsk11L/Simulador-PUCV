@@ -16,11 +16,19 @@ type AsignaturaPayload struct {
 }
 
 type VariablesPayload struct {
-	NE       int     `json:"ne"`
-	NCSmax   int     `json:"ncsmax"`
-	TAmin    float64 `json:"tamin"`
-	NapTAmin int     `json:"naptamin"`
-	Opor     int     `json:"opor"`
+	NE           int     `json:"ne"`
+	NCSmax       int     `json:"ncsmax"`
+	TAmin        float64 `json:"tamin"`
+	NapTAmin     int     `json:"naptamin"`
+	Opor         int     `json:"opor"`
+	Iteraciones  int     `json:"iteraciones"`
+	MaxSemestres int     `json:"max_semestres,omitempty"`
+	Seed         int64   `json:"seed,omitempty"`
+}
+
+type ProgramacionPayload struct {
+	Impar []string `json:"impar"`
+	Par   []string `json:"par"`
 }
 
 type ModeloPayload struct {
@@ -33,9 +41,10 @@ type ModeloPayload struct {
 }
 
 type SimularRequest struct {
-	Asignaturas []AsignaturaPayload `json:"asignaturas"`
-	Variables   VariablesPayload    `json:"variables"`
-	Modelo      ModeloPayload       `json:"modelo"`
+	Asignaturas  []AsignaturaPayload  `json:"asignaturas"`
+	Programacion *ProgramacionPayload `json:"programacion,omitempty"`
+	Variables    VariablesPayload     `json:"variables"`
+	Modelo       ModeloPayload        `json:"modelo"`
 }
 
 // ==========================================
@@ -71,16 +80,16 @@ type ResultadoAlumno struct {
 
 type RamoCritico struct {
 	Sigla         string  `json:"sigla"`
-	Intentos      int     `json:"intentos"`
-	Reprobaciones int     `json:"reprobaciones"`
+	Intentos      float64 `json:"intentos"`
+	Reprobaciones float64 `json:"reprobaciones"`
 	TasaFalloPct  float64 `json:"tasa_fallo_pct"`
 }
 
 type MetricasGlobales struct {
-	AlumnosSimulados    int     `json:"alumnos_simulados"`
-	Titulados           int     `json:"titulados"`
-	EliminadosTamin     int     `json:"eliminados_tamin"`
-	EliminadosOpor      int     `json:"eliminados_opor"`
+	AlumnosSimulados    float64 `json:"alumnos_simulados"`
+	Titulados           float64 `json:"titulados"`
+	EliminadosTamin     float64 `json:"eliminados_tamin"`
+	EliminadosOpor      float64 `json:"eliminados_opor"`
 	TasaTitulacionPct   float64 `json:"tasa_titulacion_pct"`
 	SemestresPromedio   float64 `json:"semestres_promedio"`
 	EficienciaEgreso    float64 `json:"eficiencia_egreso"`
@@ -90,18 +99,18 @@ type MetricasGlobales struct {
 }
 
 type HeatmapEstadoSemestre struct {
-	Semestre       int `json:"semestre"`
-	Activos        int `json:"activos"`
-	Titulados      int `json:"titulados"`
-	EliminadosTA   int `json:"eliminados_ta"`
-	EliminadosOpor int `json:"eliminados_opor"`
+	Semestre       int     `json:"semestre"`
+	Activos        float64 `json:"activos"`
+	Titulados      float64 `json:"titulados"`
+	EliminadosTA   float64 `json:"eliminados_ta"`
+	EliminadosOpor float64 `json:"eliminados_opor"`
 }
 
 type TransicionEstado struct {
-	Semestre int    `json:"semestre"`
-	From     string `json:"from"`
-	To       string `json:"to"`
-	Value    int    `json:"value"`
+	Semestre int     `json:"semestre"`
+	From     string  `json:"from"`
+	To       string  `json:"to"`
+	Value    float64 `json:"value"`
 }
 
 type SensibilidadParametro struct {
@@ -115,7 +124,7 @@ type SensibilidadParametro struct {
 type SimulacionResponse struct {
 	Mensaje               string                  `json:"mensaje"`
 	MetricasGlobales      MetricasGlobales        `json:"metricas_globales"`
-	DistribucionSemestres map[int]int             `json:"distribucion_semestres"`
+	DistribucionSemestres map[int]float64         `json:"distribucion_semestres"`
 	RamosCriticos         []RamoCritico           `json:"ramos_criticos"`
 	HeatmapEstadoSemestre []HeatmapEstadoSemestre `json:"heatmap_estado_semestre"`
 	TransicionesEstado    []TransicionEstado      `json:"transiciones_estado"`

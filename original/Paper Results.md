@@ -131,7 +131,6 @@ Notas:
 
 ## 5) Criterio de comparacion para proxima etapa (MATLAB vs Go)
 
-Para cada escenario se recomienda calcular:
 - Delta PPE = PPE_go - PPE_paper
 - Delta PSCE = PSCE_go - PSCE_paper
 - Delta EE = EE_go - EE_paper

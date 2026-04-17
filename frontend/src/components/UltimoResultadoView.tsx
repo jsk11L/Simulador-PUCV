@@ -73,6 +73,7 @@ export default function UltimoResultadoView({
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">TAmin: {variables.tamin}</span>
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">NapTAmin: {variables.naptamin}</span>
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">Opor: {variables.opor}</span>
+              <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">Iteraciones: {variables.iteraciones}</span>
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">VMap Basico: {modeloCalif.vmap1234}</span>
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">VMap Prof: {modeloCalif.vmap5678}</span>
               <span className="bg-white px-2 py-1 rounded border border-slate-200 font-semibold">VMap Tit: {modeloCalif.vmapm}</span>

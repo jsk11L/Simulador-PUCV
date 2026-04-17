@@ -35,3 +35,6 @@ build/
 
 # Logs
 *.log
+analysis/traces/case1_matlab.jsonl
+analysis/State Split Analysis.md
+analysis/traces/case1_go.jsonl
