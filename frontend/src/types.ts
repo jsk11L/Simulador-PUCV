@@ -41,6 +41,7 @@ export interface VariablesSimulacion {
   tamin: number;
   naptamin: number;
   opor: number;
+  iteraciones: number;
 }
 
 export interface ModeloCalificaciones {

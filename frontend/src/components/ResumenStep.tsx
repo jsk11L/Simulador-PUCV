@@ -59,6 +59,7 @@ export default function ResumenStep({
               <li className="flex justify-between"><span className="text-slate-500 font-semibold">TAmin (Avance Min)</span> <span className="font-black text-slate-900">{variables.tamin}</span></li>
               <li className="flex justify-between"><span className="text-slate-500 font-semibold">NapTAmin (Semestre Aplic)</span> <span className="font-black text-slate-900">{variables.naptamin}</span></li>
               <li className="flex justify-between"><span className="text-slate-500 font-semibold">Opor (Oportunidades)</span> <span className="font-black text-slate-900">{variables.opor}</span></li>
+              <li className="flex justify-between"><span className="text-slate-500 font-semibold">Iteraciones Montecarlo</span> <span className="font-black text-slate-900">{variables.iteraciones}</span></li>
             </ul>
           </div>
 

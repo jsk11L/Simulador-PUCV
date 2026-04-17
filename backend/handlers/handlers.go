@@ -83,6 +83,9 @@ func SimularHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido: " + err.Error()})
 		return
 	}
+	if req.Variables.Iteraciones <= 0 {
+		req.Variables.Iteraciones = 15000
+	}
 
 	resultados := engine.EjecutarMontecarlo(req)
 

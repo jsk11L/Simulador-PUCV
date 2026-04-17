@@ -388,6 +388,9 @@ export default function MallaStep({
 
                   <label className="block text-xs font-bold text-slate-500 uppercase">Opor</label>
                   <input type="number" value={variables.opor} onChange={(e) => updateVariable('opor', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
+
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Iteraciones</label>
+                  <input type="number" value={variables.iteraciones} onChange={(e) => updateVariable('iteraciones', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
                 </div>
               </section>
 

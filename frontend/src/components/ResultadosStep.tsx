@@ -33,7 +33,7 @@ export default function ResultadosStep({
             <Activity size={24} className="text-blue-400" />
           </div>
           <h2 className="text-3xl font-black text-slate-800 mb-2">Simulando...</h2>
-          <p className="text-slate-500 max-w-md text-lg">El motor de Montecarlo está procesando a los estudiantes con Golang.</p>
+          <p className="text-slate-500 max-w-md text-lg">El motor de Montecarlo está procesando promedios por iteración con Golang.</p>
         </div>
       </div>
     );
@@ -138,7 +138,7 @@ export default function ResultadosStep({
             </div>
             Resultados de la Simulación
           </h2>
-          <p className="text-slate-500 mt-1 ml-0 sm:ml-13 text-sm">{m.alumnos_simulados} estudiantes simulados · Motor Montecarlo</p>
+          <p className="text-slate-500 mt-1 ml-0 sm:ml-13 text-sm">{m.alumnos_simulados} estudiantes por iteración · Promedio de {variables.iteraciones} iteraciones Montecarlo</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button onClick={handleDownloadZip} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all text-xs sm:text-sm animate-pulse hover:animate-none">
@@ -154,7 +154,7 @@ export default function ResultadosStep({
         <div className={`rounded-xl border p-4 ${kpiBg(m.tasa_titulacion_pct, [30, 50])}`}>
           <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Tasa de Titulación (PPE)</p>
           <p className={`text-2xl font-black ${kpiColor(m.tasa_titulacion_pct, [30, 50])}`}>{m.tasa_titulacion_pct}%</p>
-          <p className="text-xs text-slate-500 mt-1">{m.titulados} de {m.alumnos_simulados} egresaron</p>
+          <p className="text-xs text-slate-500 mt-1">Promedio de titulados por iteración</p>
         </div>
         <div className="rounded-xl border bg-slate-50 border-slate-200 p-4">
           <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Semestres Promedio (PSCE)</p>
