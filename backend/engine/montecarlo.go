@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/jsk11L/Simulador-PUCV/models"
 )
@@ -206,6 +205,35 @@ func programmedIDsForSemester(req models.SimularRequest, semestreActual int) []s
 	return req.Programacion.Impar
 }
 
+func normalizeCourseID(id string) string {
+	return strings.TrimSpace(id)
+}
+
+func normalizeReqIDs(reqs []string) []string {
+	out := make([]string, 0, len(reqs))
+	for _, req := range reqs {
+		n := normalizeCourseID(req)
+		if n == "" {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func shouldOfferByParity(asig models.AsignaturaPayload, semestreActual int) bool {
+	if asig.Dictacion != "semestral" {
+		return true
+	}
+	// Semestre 0 o negativo se trata como dato inválido: no bloquear por paridad.
+	if asig.Semestre <= 0 {
+		return true
+	}
+	isImpar := asig.Semestre%2 != 0
+	currentIsImpar := semestreActual%2 != 0
+	return isImpar == currentIsImpar
+}
+
 // EjecutarMontecarlo ejecuta la simulación estocástica completa.
 // Retorna un SimulacionResponse con todas las métricas del Paper.
 func EjecutarMontecarlo(req models.SimularRequest) models.SimulacionResponse {
@@ -348,197 +376,282 @@ func ejecutarMontecarloPromedio(req models.SimularRequest, includeSensitivity bo
 }
 
 func ejecutarMontecarlo(req models.SimularRequest, includeSensitivity bool) models.SimulacionResponse {
-	// Preparar mapas de la malla para acceso ultra rápido O(1)
 	mallaMap := make(map[string]models.AsignaturaPayload)
+	asignaturasNormalizadas := make([]models.AsignaturaPayload, 0, len(req.Asignaturas))
 	maxSemestreMalla := 0
-	for _, asig := range req.Asignaturas {
+	for _, rawAsig := range req.Asignaturas {
+		asig := rawAsig
+		asig.ID = normalizeCourseID(asig.ID)
+		asig.Reqs = normalizeReqIDs(asig.Reqs)
+		if asig.ID == "" {
+			continue
+		}
 		mallaMap[asig.ID] = asig
+		asignaturasNormalizadas = append(asignaturasNormalizadas, asig)
 		if asig.Semestre > maxSemestreMalla {
 			maxSemestreMalla = asig.Semestre
 		}
 	}
 
-	var wg sync.WaitGroup
-	resultadosChan := make(chan models.ResultadoAlumno, req.Variables.NE)
+	asignaturasFallback := append([]models.AsignaturaPayload(nil), asignaturasNormalizadas...)
+	sort.SliceStable(asignaturasFallback, func(i, j int) bool {
+		a := asignaturasFallback[i]
+		b := asignaturasFallback[j]
+		const semInv = 1 << 30
+		semA := a.Semestre
+		if semA <= 0 {
+			semA = semInv
+		}
+		semB := b.Semestre
+		if semB <= 0 {
+			semB = semInv
+		}
+		if semA == semB {
+			return a.ID < b.ID
+		}
+		return semA < semB
+	})
 
-	// Semáforo para bounded concurrency (máx 500 goroutines simultáneas)
-	maxWorkers := 500
-	if req.Variables.NE < maxWorkers {
-		maxWorkers = req.Variables.NE
+	firstSemesterIDs := make([]string, 0)
+	for _, asig := range asignaturasNormalizadas {
+		if asig.Semestre == 1 {
+			firstSemesterIDs = append(firstSemesterIDs, asig.ID)
+		}
 	}
-	semaforo := make(chan struct{}, maxWorkers)
 
-	// Simulación paralela de alumnos
-	for i := 0; i < req.Variables.NE; i++ {
-		wg.Add(1)
-		semaforo <- struct{}{} // Adquirir slot en el pool
+	selectVmapDelta := func(sem int) (float64, float64) {
+		if sem >= 2 && sem <= 4 {
+			return req.Modelo.VMap1234, req.Modelo.Delta1234
+		}
+		if sem >= 5 && sem <= 8 {
+			return req.Modelo.VMap5678, req.Modelo.Delta5678
+		}
+		if sem == 1 {
+			return req.Modelo.VMap1234, req.Modelo.Delta1234
+		}
+		return req.Modelo.VMapM, req.Modelo.DeltaM
+	}
 
-		go func(alumnoID int) {
-			defer wg.Done()
-			defer func() { <-semaforo }() // Liberar slot
+	countAprobadas := func(historial map[string]*models.HistorialAsignatura) int {
+		total := 0
+		for _, h := range historial {
+			if h.Aprobado {
+				total++
+			}
+		}
+		return total
+	}
 
-			estado := models.Activo
-			semestreActual := 1
-			maxSemestres := req.Variables.MaxSemestres
-			creditosAprobadosTotales := 0
-			historial := make(map[string]*models.HistorialAsignatura)
-			var rng *rand.Rand
-			if req.Variables.Seed != 0 {
-				rng = rand.New(rand.NewSource(req.Variables.Seed + int64(alumnoID) + 1))
-			} else {
-				rng = rand.New(rand.NewSource(rand.Int63()))
+	var rng *rand.Rand
+	if req.Variables.Seed != 0 {
+		rng = rand.New(rand.NewSource(req.Variables.Seed))
+	} else {
+		rng = rand.New(rand.NewSource(rand.Int63()))
+	}
+
+	resultados := make([]models.ResultadoAlumno, 0, req.Variables.NE)
+	for alumnoID := 0; alumnoID < req.Variables.NE; alumnoID++ {
+		estado := models.Activo
+		semestreActual := 1
+		ultimoSemestreConActividad := 0
+		maxSemestres := req.Variables.MaxSemestres
+		creditosAprobadosTotales := 0
+		historial := make(map[string]*models.HistorialAsignatura)
+		intentosLocal := make(map[string]int)
+		reprobacionesLocal := make(map[string]int)
+		estadoTimeline := make([]models.EstadoAlumno, 0, 30)
+		pendientesEvaluacion := make([]string, 0)
+
+		for _, id := range firstSemesterIDs {
+			asig, ok := mallaMap[id]
+			if !ok {
+				continue
 			}
 
-			// Tracking local de reprobaciones por ramo (para Ramos Críticos)
-			intentosLocal := make(map[string]int)
-			reprobacionesLocal := make(map[string]int)
-			estadoTimeline := make([]models.EstadoAlumno, 0, 30)
+			vmap, delta := selectVmapDelta(1)
+			probExitoAlumno := math.Abs(vmap + delta*rng.NormFloat64())
+			aprobado := probExitoAlumno >= asig.Rep
 
-			for estado == models.Activo && (maxSemestres <= 0 || semestreActual <= maxSemestres) {
-				estadoDelSemestre := models.Activo
-				creditosInscritos := 0
-				var asignaturasTomadas []string
-				seen := make(map[string]bool)
-
-				tryEnroll := func(asig models.AsignaturaPayload) {
-					if seen[asig.ID] {
-						return
-					}
-					seen[asig.ID] = true
-
-					if h, ok := historial[asig.ID]; ok && h.Aprobado {
-						return
-					}
-
-					cumpleReqs := true
-					for _, reqSigla := range asig.Reqs {
-						if reqSigla == "" {
-							continue
-						}
-						if reqHist, ok := historial[reqSigla]; !ok || !reqHist.Aprobado {
-							cumpleReqs = false
-							break
-						}
-					}
-					if !cumpleReqs {
-						return
-					}
-
-					if creditosInscritos+asig.Cred <= req.Variables.NCSmax {
-						asignaturasTomadas = append(asignaturasTomadas, asig.ID)
-						creditosInscritos += asig.Cred
-					}
+			historial[id] = &models.HistorialAsignatura{Sigla: id, Oportunidad: 1, Aprobado: aprobado}
+			intentosLocal[id]++
+			if aprobado {
+				creditosAprobadosTotales += asig.Cred
+			} else {
+				reprobacionesLocal[id]++
+				if req.Variables.Opor > 0 && historial[id].Oportunidad >= req.Variables.Opor {
+					estado = models.EliminadoOpor
 				}
+			}
+			ultimoSemestreConActividad = 1
+		}
 
-				programmedIDs := programmedIDsForSemester(req, semestreActual)
-				if len(programmedIDs) > 0 {
-					for _, id := range programmedIDs {
-						asig, ok := mallaMap[id]
-						if !ok {
-							continue
-						}
-						tryEnroll(asig)
-					}
-				} else {
-					for _, asig := range req.Asignaturas {
-						if asig.Dictacion == "semestral" {
-							isImpar := asig.Semestre%2 != 0
-							currentIsImpar := semestreActual%2 != 0
-							if isImpar != currentIsImpar {
-								continue
-							}
-						}
-						tryEnroll(asig)
-					}
-				}
+		if estado == models.Activo && semestreActual >= req.Variables.NapTAmin {
+			if float64(creditosAprobadosTotales)/float64(semestreActual) < req.Variables.TAmin {
+				estado = models.EliminadoTAmin
+			}
+		}
 
-				// Si no tomó nada y ya aprobó todo, se titula
-				if len(asignaturasTomadas) == 0 {
-					todasAprobadas := true
-					for _, a := range req.Asignaturas {
-						if h, ok := historial[a.ID]; !ok || !h.Aprobado {
-							todasAprobadas = false
-							break
-						}
-					}
-					if todasAprobadas {
-						estado = models.Titulado
-						estadoDelSemestre = models.Titulado
-						estadoTimeline = append(estadoTimeline, estadoDelSemestre)
-						break
-					}
-				}
+		if estado != models.Activo {
+			estadoTimeline = append(estadoTimeline, estado)
+		} else {
+			estadoTimeline = append(estadoTimeline, models.Activo)
+		}
 
-				// Simular aprobación estocástica
-				for _, sigla := range asignaturasTomadas {
-					asig := mallaMap[sigla]
+		for estado == models.Activo {
+			if maxSemestres > 0 && semestreActual >= maxSemestres {
+				estado = models.EliminadoTAmin
+				estadoTimeline = append(estadoTimeline, estado)
+				break
+			}
 
-					vmap, delta := req.Modelo.VMapM, req.Modelo.DeltaM
-					if asig.Semestre <= 4 {
-						vmap, delta = req.Modelo.VMap1234, req.Modelo.Delta1234
-					} else if asig.Semestre <= 8 {
-						vmap, delta = req.Modelo.VMap5678, req.Modelo.Delta5678
+			if semestreActual > 1 {
+				vmap, delta := selectVmapDelta(semestreActual)
+				for _, sigla := range pendientesEvaluacion {
+					asig, ok := mallaMap[sigla]
+					if !ok {
+						continue
 					}
 
-					// math.Abs replica fielmente el MATLAB: abs(VMap + Delta.*randn(l,1))
 					probExitoAlumno := math.Abs(vmap + delta*rng.NormFloat64())
 					aprobado := probExitoAlumno >= asig.Rep
 
-					if _, ok := historial[sigla]; !ok {
-						historial[sigla] = &models.HistorialAsignatura{Sigla: sigla, Oportunidad: 0}
+					h, ok := historial[sigla]
+					if !ok {
+						h = &models.HistorialAsignatura{Sigla: sigla}
+						historial[sigla] = h
 					}
-
-					historial[sigla].Oportunidad++
+					h.Oportunidad++
 					intentosLocal[sigla]++
 
 					if aprobado {
-						historial[sigla].Aprobado = true
-						creditosAprobadosTotales += asig.Cred
+						if !h.Aprobado {
+							h.Aprobado = true
+							creditosAprobadosTotales += asig.Cred
+						}
 					} else {
 						reprobacionesLocal[sigla]++
-						if historial[sigla].Oportunidad >= req.Variables.Opor {
+						if req.Variables.Opor > 0 && h.Oportunidad >= req.Variables.Opor {
 							estado = models.EliminadoOpor
-							estadoDelSemestre = models.EliminadoOpor
 						}
 					}
 				}
 
-				if estado == models.EliminadoOpor {
-					estadoTimeline = append(estadoTimeline, estadoDelSemestre)
-					break
-				}
-
-				// Chequear Tasa de Avance (TAmin)
-				if semestreActual >= req.Variables.NapTAmin {
+				if estado == models.Activo && semestreActual >= req.Variables.NapTAmin {
 					if float64(creditosAprobadosTotales)/float64(semestreActual) < req.Variables.TAmin {
 						estado = models.EliminadoTAmin
-						estadoDelSemestre = models.EliminadoTAmin
-						estadoTimeline = append(estadoTimeline, estadoDelSemestre)
-						break
 					}
 				}
 
-				estadoTimeline = append(estadoTimeline, estadoDelSemestre)
-
-				semestreActual++
+				if estado != models.Activo {
+					estadoTimeline = append(estadoTimeline, estado)
+					break
+				}
 			}
 
-			if estado == models.Activo && maxSemestres > 0 && semestreActual > maxSemestres {
-				estado = models.EliminadoTAmin
+			nAp := countAprobadas(historial)
+			semestreActual++
+
+			programmedIDs := programmedIDsForSemester(req, semestreActual)
+			candidatos := make([]string, 0)
+			if len(programmedIDs) > 0 {
+				for _, rawID := range programmedIDs {
+					id := normalizeCourseID(rawID)
+					if id == "" || id == "0" {
+						continue
+					}
+					candidatos = append(candidatos, id)
+				}
+			} else {
+				for _, asig := range asignaturasFallback {
+					if !shouldOfferByParity(asig, semestreActual) {
+						continue
+					}
+					candidatos = append(candidatos, asig.ID)
+				}
 			}
 
-			resultadosChan <- models.ResultadoAlumno{
-				Estado:            estado,
-				SemestresUsados:   semestreActual,
-				ReprobacionesRamo: reprobacionesLocal,
-				IntentosRamo:      intentosLocal,
-				EstadoTimeline:    estadoTimeline,
+			filtrados := make([]string, 0, len(candidatos))
+			for _, id := range candidatos {
+				if h, ok := historial[id]; ok && h.Aprobado {
+					continue
+				}
+				filtrados = append(filtrados, id)
 			}
-		}(i)
+
+			pendientesEvaluacion = pendientesEvaluacion[:0]
+			creditosInscritos := 0
+			for _, id := range filtrados {
+				asig, ok := mallaMap[id]
+				if !ok {
+					continue
+				}
+
+				cumpleReqs := true
+				for _, reqSigla := range asig.Reqs {
+					reqSigla = normalizeCourseID(reqSigla)
+					if reqSigla == "" {
+						continue
+					}
+					reqHist, ok := historial[reqSigla]
+					if !ok || !reqHist.Aprobado {
+						cumpleReqs = false
+						break
+					}
+				}
+				if !cumpleReqs {
+					continue
+				}
+
+				if creditosInscritos+asig.Cred > req.Variables.NCSmax {
+					continue
+				}
+
+				creditosInscritos += asig.Cred
+				pendientesEvaluacion = append(pendientesEvaluacion, id)
+				if _, ok := historial[id]; !ok {
+					historial[id] = &models.HistorialAsignatura{Sigla: id, Oportunidad: 0, Aprobado: false}
+				}
+			}
+
+			if len(pendientesEvaluacion) == 0 {
+				if nAp == len(asignaturasNormalizadas) {
+					estado = models.Titulado
+				} else {
+					estado = models.EliminadoTAmin
+				}
+				estadoTimeline = append(estadoTimeline, estado)
+				break
+			}
+
+			if req.Variables.Opor > 0 {
+				for _, h := range historial {
+					if !h.Aprobado && h.Oportunidad >= req.Variables.Opor {
+						estado = models.EliminadoOpor
+						break
+					}
+				}
+				if estado == models.EliminadoOpor {
+					estadoTimeline = append(estadoTimeline, estado)
+					break
+				}
+			}
+
+			ultimoSemestreConActividad = semestreActual
+			estadoTimeline = append(estadoTimeline, models.Activo)
+		}
+
+		if ultimoSemestreConActividad == 0 {
+			ultimoSemestreConActividad = 1
+		}
+
+		resultados = append(resultados, models.ResultadoAlumno{
+			Estado:            estado,
+			SemestresUsados:   ultimoSemestreConActividad,
+			ReprobacionesRamo: reprobacionesLocal,
+			IntentosRamo:      intentosLocal,
+			EstadoTimeline:    estadoTimeline,
+		})
 	}
-
-	wg.Wait()
-	close(resultadosChan)
 
 	// ==========================================
 	// AGREGACIÓN DE RESULTADOS
@@ -558,7 +671,7 @@ func ejecutarMontecarlo(req models.SimularRequest, includeSensitivity bool) mode
 
 	umbralOportuno := maxSemestreMalla + 2
 
-	for res := range resultadosChan {
+	for _, res := range resultados {
 		switch res.Estado {
 		case models.Titulado:
 			titulados++
@@ -632,7 +745,7 @@ func ejecutarMontecarlo(req models.SimularRequest, includeSensitivity bool) mode
 	retencion3er := (ne - float64(estudiantesFueraTercerAnio)) / ne * 100
 
 	var ramosCriticos []models.RamoCritico
-	for _, asig := range req.Asignaturas {
+	for _, asig := range asignaturasNormalizadas {
 		intentos := intentosGlobal[asig.ID]
 		reprob := reprobacionesGlobal[asig.ID]
 		if intentos > 0 {

@@ -55,3 +55,41 @@ Resumen consolidado de los cruces de `case1` con 1000 iteraciones por motor.
 - [Specific Data Analysis.md](Specific%20Data%20Analysis.md)
 - [Exit Reason Analysis.md](Exit%20Reason%20Analysis.md)
 - [Semester Split Analysis.md](Semester%20Split%20Analysis.md)
+
+## 6. Micro-Test trazable (2026-04-17)
+
+Comparación determinística pedida: Estudiante 1, Semestre 3, `scenario=caso_actual`, `iterations=1`, `seed=20260416`.
+
+| Motor | Asignaturas inscritas S3 (Est. 1) |
+| --- | --- |
+| Go | `215,205,217,300,344,400` |
+| Matlab | `140,215,233,205` |
+
+Hallazgo clave: la divergencia no nace en S3, nace en S1.
+
+- Go S1 aprueba `115,140,116,100`.
+- Matlab S1 aprueba `115,116,100` y reprueba `140`.
+
+Evidencia de traza (S1, ramo `140`):
+
+- Go: `abs=0.280790 >= rep(0.18)` -> aprobado.
+- Matlab: `r=0.094290 < rep(0.18)` -> reprobado.
+
+Conclusión técnica: usar el mismo `seed` NO garantiza la misma trayectoria alumno-a-alumno entre MATLAB y Go porque los generadores normales (`randn` vs `NormFloat64`) no producen la misma secuencia. Por eso, el micro-test de igualdad exacta por estudiante solo es válido si ambos motores consumen una misma secuencia de aleatorios pregrabada o un RNG común.
+
+## 7. Caso 1 completo (1000 iteraciones)
+
+Ejecución completa realizada en ambos motores con `scenario=caso_actual`, `iterations=1000`, `seed=20260416`.
+
+| Métrica | Go | Matlab | Delta (Go-Matlab) |
+| --- | ---: | ---: | ---: |
+| PPE | 23.15 | 40.90 | -17.75 |
+| PSCE | 17.06 | 16.03 | +1.03 |
+| EE | 1.42 | 1.34 | +0.09 |
+| PEO | 0.05 | 3.85 | -3.80 |
+
+Lectura rápida:
+
+- Go sigue muy por debajo de Matlab en `PPE` y `PEO`.
+- Go muestra `PSCE` y `EE` mayores, consistente con una cohorte de titulados más pequeña y más tardía.
+- La brecha principal que sigue abierta para convergencia con el original está en la tasa de titulación y el egreso oportuno.

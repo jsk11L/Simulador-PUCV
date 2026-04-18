@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/jsk11L/Simulador-PUCV/models"
 )
@@ -186,13 +187,41 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 	const DeltaM = 0.25
 
 	mallaMap := make(map[string]models.AsignaturaPayload, len(in.Asignaturas))
+	asignaturasOrdenadas := make([]models.AsignaturaPayload, 0, len(in.Asignaturas))
 	maxSemestreMalla := 0
-	for _, asig := range in.Asignaturas {
+	for _, rawAsig := range in.Asignaturas {
+		asig := rawAsig
+		asig.ID = normalizeCourseID(asig.ID)
+		asig.Reqs = normalizeReqIDs(asig.Reqs)
+		if asig.ID == "" {
+			continue
+		}
 		mallaMap[asig.ID] = asig
+		asignaturasOrdenadas = append(asignaturasOrdenadas, asig)
 		if asig.Semestre > maxSemestreMalla {
 			maxSemestreMalla = asig.Semestre
 		}
 	}
+
+	sort.SliceStable(asignaturasOrdenadas, func(i, j int) bool {
+		a := asignaturasOrdenadas[i]
+		b := asignaturasOrdenadas[j]
+		const semInv = 1 << 30
+
+		semA := a.Semestre
+		if semA <= 0 {
+			semA = semInv
+		}
+		semB := b.Semestre
+		if semB <= 0 {
+			semB = semInv
+		}
+
+		if semA == semB {
+			return a.ID < b.ID
+		}
+		return semA < semB
+	})
 
 	type resultAlumno struct {
 		Estado          models.EstadoAlumno
@@ -210,6 +239,7 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 		rng := randSource(studentSeed)
 		estado := models.Activo
 		semestreActual := 1
+		semestresCursados := 0
 		creditosAprobadosTotales := 0
 		historial := make(map[string]*models.HistorialAsignatura)
 		intentosLocal := make(map[string]int)
@@ -288,6 +318,7 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 				turno.Prereqs = append([]string(nil), asig.Reqs...)
 				cumpleReqs := true
 				for _, reqSigla := range asig.Reqs {
+					reqSigla = normalizeCourseID(reqSigla)
 					if reqSigla == "" {
 						continue
 					}
@@ -324,7 +355,11 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 			}
 
 			if len(programmedIDs) > 0 {
-				for _, id := range programmedIDs {
+				for _, rawID := range programmedIDs {
+					id := normalizeCourseID(rawID)
+					if id == "" || id == "0" {
+						continue
+					}
 					asig, ok := mallaMap[id]
 					if !ok {
 						continue
@@ -332,13 +367,9 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 					tryEnroll(asig)
 				}
 			} else {
-				for _, asig := range in.Asignaturas {
-					if asig.Dictacion == "semestral" {
-						isImpar := asig.Semestre%2 != 0
-						currentIsImpar := semestreActual%2 != 0
-						if isImpar != currentIsImpar {
-							continue
-						}
+				for _, asig := range asignaturasOrdenadas {
+					if !shouldOfferByParity(asig, semestreActual) {
+						continue
 					}
 					tryEnroll(asig)
 				}
@@ -363,7 +394,7 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 
 			if len(asignaturasTomadas) == 0 {
 				todasAprobadas := true
-				for _, a := range in.Asignaturas {
+				for _, a := range asignaturasOrdenadas {
 					if h, ok := historial[a.ID]; !ok || !h.Aprobado {
 						todasAprobadas = false
 						break
@@ -386,7 +417,8 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 				} else if asig.Semestre <= 8 {
 					vmap, delta = VMap5678, Delta5678
 				}
-				r := mathAbs(vmap + delta*rng.NormFloat64())
+				randNorm := rng.NormFloat64()
+				r := mathAbs(vmap + delta*randNorm)
 				aprobado := r >= asig.Rep
 
 				if _, ok := historial[sigla]; !ok {
@@ -400,7 +432,7 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 					Semestre:    semestreActual,
 					VMap:        vmap,
 					Delta:       delta,
-					RandNorm:    0,
+					RandNorm:    randNorm,
 					AbsValue:    r,
 					Threshold:   asig.Rep,
 					Approved:    aprobado,
@@ -424,8 +456,10 @@ func runTraceOnce(in scenarioInput, iteration int, seed int64, emit func(traceEv
 				break
 			}
 
-			if semestreActual >= NapTAmin {
-				if float64(creditosAprobadosTotales)/float64(semestreActual) < TAmin {
+			semestresCursados = semestreActual
+
+			if semestresCursados >= NapTAmin {
+				if float64(creditosAprobadosTotales)/float64(semestresCursados) < TAmin {
 					estado = models.EliminadoTAmin
 					estadoTimeline = append(estadoTimeline, estado)
 					emit(traceEvent{Event: "semester_end", Iteration: iteration, Student: student + 1, Semester: semestreActual, State: estadoToLabel(estado), Data: semesterTrace{StateAfter: estadoToLabel(estado), CreditsAprobadosTotales: creditosAprobadosTotales, CreditsInscritos: creditosInscritos, Enrollments: approvalEvents, HistoryAfter: snapshotHistorial(historial), ReprobacionesPorRamo: copyIntMap(reprobacionesLocal), IntentosPorRamo: copyIntMap(intentosLocal), RawTurnos: rawTurnos}})
@@ -478,20 +512,79 @@ func programmedIDsForSemesterLocal(in scenarioInput, semestreActual int) []strin
 
 func collectedOfferOrder(in scenarioInput, programmedIDs []string, semestreActual int) []string {
 	if len(programmedIDs) > 0 {
-		return append([]string(nil), programmedIDs...)
-	}
-	order := make([]string, 0, len(in.Asignaturas))
-	for _, asig := range in.Asignaturas {
-		if asig.Dictacion == "semestral" {
-			isImpar := asig.Semestre%2 != 0
-			currentIsImpar := semestreActual%2 != 0
-			if isImpar != currentIsImpar {
+		out := make([]string, 0, len(programmedIDs))
+		for _, id := range programmedIDs {
+			n := normalizeCourseID(id)
+			if n == "" || n == "0" {
 				continue
 			}
+			out = append(out, n)
+		}
+		return out
+	}
+	asignaturasOrdenadas := make([]models.AsignaturaPayload, 0, len(in.Asignaturas))
+	for _, rawAsig := range in.Asignaturas {
+		asig := rawAsig
+		asig.ID = normalizeCourseID(asig.ID)
+		if asig.ID == "" {
+			continue
+		}
+		asignaturasOrdenadas = append(asignaturasOrdenadas, asig)
+	}
+	sort.SliceStable(asignaturasOrdenadas, func(i, j int) bool {
+		a := asignaturasOrdenadas[i]
+		b := asignaturasOrdenadas[j]
+		const semInv = 1 << 30
+		semA := a.Semestre
+		if semA <= 0 {
+			semA = semInv
+		}
+		semB := b.Semestre
+		if semB <= 0 {
+			semB = semInv
+		}
+		if semA == semB {
+			return a.ID < b.ID
+		}
+		return semA < semB
+	})
+
+	order := make([]string, 0, len(asignaturasOrdenadas))
+	for _, asig := range asignaturasOrdenadas {
+		if !shouldOfferByParity(asig, semestreActual) {
+			continue
 		}
 		order = append(order, asig.ID)
 	}
 	return order
+}
+
+func normalizeCourseID(id string) string {
+	return strings.TrimSpace(id)
+}
+
+func normalizeReqIDs(reqs []string) []string {
+	out := make([]string, 0, len(reqs))
+	for _, req := range reqs {
+		n := normalizeCourseID(req)
+		if n == "" {
+			continue
+		}
+		out = append(out, n)
+	}
+	return out
+}
+
+func shouldOfferByParity(asig models.AsignaturaPayload, semestreActual int) bool {
+	if asig.Dictacion != "semestral" {
+		return true
+	}
+	if asig.Semestre <= 0 {
+		return true
+	}
+	isImpar := asig.Semestre%2 != 0
+	currentIsImpar := semestreActual%2 != 0
+	return isImpar == currentIsImpar
 }
 
 func snapshotHistorial(historial map[string]*models.HistorialAsignatura) []histSnapshot {
