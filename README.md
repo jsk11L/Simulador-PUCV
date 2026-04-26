@@ -13,7 +13,7 @@ Plataforma de simulación curricular para Ingeniería Civil Eléctrica PUCV, bas
 ## Ejecución local
 
 ### Requisitos
-- Node.js 20+
+- Node.js 22.12+
 - Go 1.26+
 - PostgreSQL 14+
 
