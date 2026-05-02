@@ -167,6 +167,22 @@ export default function useSimulationActions({ apiUrl }: UseSimulationActionsPar
   }: RunSimulationParams) => {
     onStart();
 
+    const programacion: { impar: string[]; par: string[] } = {
+      impar: [],
+      par: [],
+    };
+
+    for (const asig of malla) {
+      if (asig.dictacion === 'semestral') {
+        programacion.impar.push(asig.id);
+        programacion.par.push(asig.id);
+      } else if (asig.semestre % 2 !== 0) {
+        programacion.impar.push(asig.id);
+      } else {
+        programacion.par.push(asig.id);
+      }
+    }
+
     try {
       const mallaNameParam = encodeURIComponent(nombreMalla);
       const response = await fetch(`${apiUrl('/api/simular')}?malla_nombre=${mallaNameParam}`, {
@@ -179,6 +195,7 @@ export default function useSimulationActions({ apiUrl }: UseSimulationActionsPar
           asignaturas: malla,
           variables,
           modelo: modeloCalif,
+          programacion,
         }),
       });
 
