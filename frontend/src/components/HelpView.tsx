@@ -15,23 +15,27 @@ export default function HelpView() {
         </div>
 
         <div className="mb-8">
-          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-3"><Info size={20} className="text-blue-500" /> ¿Qué es SimulaPUCV?</h3>
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-3"><Info size={20} className="text-blue-500" /> La plataforma SimulaPUCV</h3>
           <p className="text-slate-600 leading-relaxed">
             SimulaPUCV es una plataforma de simulación académica basada en el <strong>Método Estocástico de Montecarlo</strong>.
-            Permite evaluar el impacto de cambios curriculares sobre indicadores clave como la <strong>tasa de titulación</strong>,
-            <strong>tiempo promedio de egreso</strong> y <strong>ramos críticos</strong>, sin necesidad de conocimientos en programación.
+            Se opera con un <strong>wizard de 3 pasos</strong>, una barra lateral de navegación para consultar resultados
+            históricos y una capa de exportación técnica en formato ZIP con métricas, tablas y capturas de gráficos.
           </p>
+          <div className="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <p className="text-sm text-slate-700 font-semibold mb-2">Vistas activas en la barra lateral</p>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Nueva Simulación, Continuar Simulación, Log Pasado, Último Resultado, Resultados Pasados, Mallas Guardadas y Ayuda.
+            </p>
+          </div>
         </div>
 
         <div className="mb-8">
-          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4"><Rocket size={20} className="text-blue-500" /> Flujo de Trabajo (Wizard)</h3>
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4"><Rocket size={20} className="text-blue-500" /> Flujo de Trabajo Vigente (Wizard)</h3>
           <div className="space-y-4">
             {[
-              { step: 1, title: 'Diseño de Malla', desc: 'Crea tu malla curricular usando la plantilla incluida, importando un CSV, cargando una malla guardada, o empezando en blanco. Cada asignatura tiene: Sigla, Créditos, Tasa de Reprobación, Prerrequisitos y Dictación (anual o semestral).' },
-              { step: 2, title: 'Variables de Simulación', desc: 'Configura NE (número de estudiantes virtuales), NCSmax (créditos máximos por semestre), TAmin (tasa de avance mínima), NapTAmin (semestre de aplicación) y Opor (oportunidades máximas para reprobar).' },
-              { step: 3, title: 'Modelo Estocástico', desc: 'Define la media de aprobación (VMap) y su variación (Delta) para 3 ciclos: Básico (Sem 1-4), Profesional (Sem 5-8) y Titulación (Sem 9+). Valores entre 0.0 y 1.0.' },
-              { step: 4, title: 'Resumen', desc: 'Verifica todos los parámetros antes de ejecutar. Aquí se muestran la malla, las variables y el modelo en una vista consolidada.' },
-              { step: 5, title: 'Resultados', desc: 'Dashboard con KPIs (PPE, PSCE, EE, PEO), histograma de tiempos de titulación, tabla de ramos críticos. Puedes descargar todo como .zip.' },
+              { step: 1, title: 'Diseño de Malla + Configuración Global', desc: 'Selecciona método de inicio (Plantillas, CSV, Malla guardada o Hoja en Blanco), edita asignaturas en Kanban y define variables/modelo desde el modal de Configuración.' },
+              { step: 2, title: 'Resumen y Validación', desc: 'Consolida estructura curricular, parámetros de simulación y modelo de calificaciones antes de ejecutar el motor.' },
+              { step: 3, title: 'Resultados y Re-ejecución', desc: 'Visualiza KPIs, distribuciones, heatmaps, Sankey y sensibilidad. Puedes volver a Resumen o relanzar simulación sin reiniciar el flujo.' },
             ].map(s => (
               <div key={s.step} className="flex gap-4 items-start">
                 <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0">{s.step}</div>
@@ -41,6 +45,34 @@ export default function HelpView() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4"><Info size={20} className="text-blue-500" /> Parámetros de Configuración y Efecto</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            {[
+              ['NE', 'Cantidad de estudiantes simulados por corrida. A mayor NE, menor ruido estadístico y mayor costo computacional.'],
+              ['NCSmax', 'Tope de créditos que un estudiante puede cursar por semestre. Incrementarlo acelera avance potencial y puede elevar egreso oportuno.'],
+              ['TAmin', 'Umbral mínimo de avance académico exigido. Valores más altos endurecen permanencia y aumentan riesgo de eliminación por avance insuficiente.'],
+              ['NapTAmin', 'Semestre desde el cual comienza a aplicarse TAmin. Controla cuán temprano entra la restricción de avance.'],
+              ['Opor', 'Máximo de reprobaciones toleradas por asignatura. Subirlo reduce expulsiones por oportunidades agotadas.'],
+              ['MaxSemestres', 'Cota superior del horizonte de simulación por malla. Debe coincidir con el mayor semestre presente en las asignaturas de la malla.'],
+            ].map(([name, desc]) => (
+              <div key={name} className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                <div className="text-xs font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded inline-block mb-2">{name}</div>
+                <p className="text-xs text-slate-600 leading-relaxed">{desc}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <p className="text-sm font-bold text-slate-800 mb-3">Modelo de Calificaciones (VMap y Delta)</p>
+            <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
+              <p><strong>VMap1234, VMap5678, VMapM:</strong> media de aprobación esperada por ciclo. Valores mayores tienden a reducir repitencia.</p>
+              <p><strong>Delta1234, Delta5678, DeltaM:</strong> dispersión alrededor de la media por ciclo. Valores mayores introducen más variabilidad inter-estudiante y amplían el rango de trayectorias.</p>
+              <p>La combinación <strong>VMap alto + Delta bajo</strong> produce cohortes más estables; <strong>VMap bajo + Delta alto</strong> suele aumentar dispersión en tiempos de titulación y riesgo de rezago.</p>
+            </div>
           </div>
         </div>
 
@@ -124,6 +156,11 @@ FIS-301,3,5,0.44,FIS-201;MAT-201,anual`}</pre>
               ['parametros.txt', 'Variables de simulación y modelo estocástico'],
               ['resultados.csv', 'KPIs y distribución de semestres de titulación'],
               ['ramos_criticos.csv', 'Ranking de ramos por tasa de fallo en la simulación'],
+              ['heatmap_estado_semestre.csv', 'Matriz de estados por semestre (si está disponible)'],
+              ['transiciones_estado.csv', 'Transiciones entre estados para vista Sankey (si aplica)'],
+              ['sensibilidad_tornado.csv', 'Análisis de sensibilidad tipo tornado (si aplica)'],
+              ['heatmap_asignaturas_kanban.csv', 'Tasa de fallo por asignatura y semestre para heatmap Kanban'],
+              ['graficos/*.png', 'Capturas de gráficos del dashboard (si existen en pantalla)'],
             ].map(([file, desc]) => (
               <div key={file} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-start gap-3">
                 <FileSpreadsheet size={18} className="text-emerald-600 shrink-0 mt-0.5" />

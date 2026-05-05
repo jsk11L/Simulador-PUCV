@@ -33,21 +33,20 @@ const MATH_SUBJECT_IDS = new Set(['115', '116', '117', '133', '215']);
 const FOUR_AS_IDS = new Set(['252', '351', '446', '415']);
 
 const PAPER_SCENARIOS: PaperScenarioPreset[] = [
-  { id: 'caso_actual', label: 'Base histórica del plan DRA 92/93', summary: 'Malla original con tasas de reprobación históricas y programación base de docencia.' },
-  { id: 'ci', label: 'Escenario ideal de aprobación total', summary: 'Fuerza reprobación 0% en todas las asignaturas para validar techo teórico del modelo.' },
-  { id: 'ci2', label: 'Ideal con carga máxima extendida', summary: 'Igual que el ideal, pero sube NCSmax de 21 a 25 créditos por semestre.' },
-  { id: 'pe', label: 'Dictación estricta según paridad de malla', summary: 'Aproximación operativa: deja la oferta como anual para simular mayor rigidez de programación.' },
-  { id: 'cas', label: 'Oferta semestral completa', summary: 'Convierte todas las asignaturas a dictación semestral (ambos semestres).' },
-  { id: 'nop6', label: 'Mayor tolerancia de reprobaciones', summary: 'Mantiene la malla base y fija Opor en 6 oportunidades máximas.' },
-  { id: 'r_10', label: 'Mejora global en aprobación', summary: 'Reduce en 10% la reprobación de todas las asignaturas de la malla.' },
-  { id: 'r_mas_10', label: 'Deterioro global en aprobación', summary: 'Aumenta en 10% la reprobación de todas las asignaturas de la malla.' },
-  { id: 'r_10_mat', label: 'Mejora focalizada en matemáticas', summary: 'Reduce en 10% la reprobación solo en ramos matemáticos base.' },
-  { id: 'r_10_gt_40', label: 'Mejora en ramos críticos', summary: 'Reduce en 10% la reprobación de asignaturas con tasa superior al 40%.' },
-  { id: 'sin_req_mat117', label: 'Desbloqueo curricular en MAT117', summary: 'Elimina prerrequisitos de MAT117 para probar su efecto en flujo de avance.' },
-  { id: 'sin_req_fis334', label: 'Desbloqueo curricular en FIS334', summary: 'Elimina prerrequisitos de FIS334 para medir sensibilidad del cuello de botella.' },
-  { id: 'r_10_eie252_459', label: 'Intervención puntual en EIE252 y EIE459', summary: 'Reduce en 10% la reprobación solo en esas dos asignaturas objetivo.' },
-  { id: 'cuatro_as', label: 'Ajuste de dictación en 4 asignaturas', summary: 'Pasa EIE252, EIE351, EIE446 e ICA415 a dictación semestral.' },
-  { id: 'pf', label: 'Propuesta final compuesta del paper', summary: 'Combina mejora en ramos críticos, 4AS y aumento de NCSmax a 25 créditos.' },
+  { id: 'caso_actual', label: 'Caso Actual', summary: 'Línea base del plan DRA 92/93 con tasas históricas de reprobación y patrón de dictación original para contraste metodológico.' },
+  { id: 'ci', label: 'Asignaturas con 100% de aprobación', summary: 'Escenario contrafactual con rep=0% en toda la malla para estimar el límite superior del sistema bajo aprobación perfecta.' },
+  { id: 'pe', label: 'Oferta anual estricta por paridad', summary: 'Restringe la oferta a dictación anual, preservando paridad de semestre de origen para analizar rigidez de programación docente.' },
+  { id: 'cas', label: 'Oferta semestral total', summary: 'Fuerza dictación semestral en todas las asignaturas para estimar impacto de disponibilidad completa en progresión.' },
+  { id: 'nop6', label: 'Mayor tolerancia de oportunidades (Opor=6)', summary: 'Conserva la malla base y aumenta Opor a 6 para medir sensibilidad del egreso frente a mayor tolerancia de reprobación.' },
+  { id: 'r_10', label: 'Reducción global de reprobación (-10%)', summary: 'Aplica factor multiplicativo 0.9 a rep en todas las asignaturas para simular mejora sistémica de rendimiento.' },
+  { id: 'r_mas_10', label: 'Aumento global de reprobación (+10%)', summary: 'Aplica factor multiplicativo 1.1 a rep en toda la malla para estresar el modelo bajo deterioro académico transversal.' },
+  { id: 'r_10_mat', label: 'Reducción de reprobación en matemáticas (-10%)', summary: 'Intervención focalizada en asignaturas matemáticas base con rep ajustada por factor 0.9.' },
+  { id: 'r_10_gt_40', label: 'Reducción en asignaturas críticas (rep > 40%)', summary: 'Disminuye en 10% la rep de ramos con tasa histórica superior a 40% para atacar cuellos de botella de alta criticidad.' },
+  { id: 'sin_req_mat117', label: 'MAT117 sin prerrequisitos', summary: 'Elimina dependencias de MAT117 para cuantificar elasticidad del flujo curricular ante desbloqueo temprano.' },
+  { id: 'sin_req_fis334', label: 'FIS334 sin prerrequisitos', summary: 'Suprime prerrequisitos de FIS334 para evaluar sensibilidad del avance en un nodo de potencial congestión.' },
+  { id: 'r_10_eie252_459', label: 'Intervención puntual EIE252 y EIE459 (-10%)', summary: 'Reduce rep en EIE252 y EIE459 exclusivamente para medir efecto marginal de mejora localizada.' },
+  { id: 'cuatro_as', label: 'Oferta semestral en 4 asignaturas estratégicas', summary: 'Cambia a dictación semestral EIE252, EIE351, EIE446 e ICA415 para analizar ganancia de disponibilidad selectiva.' },
+  { id: 'pf', label: 'Escenario Compuesto Final', summary: 'Combina reducción en ramos críticos, estrategia 4AS y aumento de NCSmax a 25 como intervención integrada de cierre.' },
 ];
 
 interface MallaStepProps {
@@ -374,23 +373,21 @@ export default function MallaStep({
               <section className="border border-slate-200 rounded-xl p-4 bg-slate-50">
                 <h4 className="font-bold text-slate-800 mb-4">Variables de Simulación</h4>
                 <div className="space-y-3">
-                  <label className="block text-xs font-bold text-slate-500 uppercase">NE</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Número de Estudiantes (NE)</label>
                   <input type="number" value={variables.ne} onChange={(e) => updateVariable('ne', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
 
-                  <label className="block text-xs font-bold text-slate-500 uppercase">NCSmax</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Créditos Máximos por Semestre (NCSmax)</label>
                   <input type="number" value={variables.ncsmax} onChange={(e) => updateVariable('ncsmax', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
 
-                  <label className="block text-xs font-bold text-slate-500 uppercase">TAmin</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Tasa de Avance Mínima (TAmin)</label>
                   <input type="number" step="0.1" value={variables.tamin} onChange={(e) => updateVariable('tamin', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
 
-                  <label className="block text-xs font-bold text-slate-500 uppercase">NapTAmin</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Semestre de Aplicación de TAmin (NapTAmin)</label>
                   <input type="number" value={variables.naptamin} onChange={(e) => updateVariable('naptamin', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
 
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Opor</label>
+                  <label className="block text-xs font-bold text-slate-500 uppercase">Oportunidades Máximas por Asignatura (Opor)</label>
                   <input type="number" value={variables.opor} onChange={(e) => updateVariable('opor', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
 
-                  <label className="block text-xs font-bold text-slate-500 uppercase">Iteraciones</label>
-                  <input type="number" value={variables.iteraciones} onChange={(e) => updateVariable('iteraciones', e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 text-sm" />
                 </div>
               </section>
 
