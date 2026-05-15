@@ -138,7 +138,7 @@ export default function ResultadosStep({
             </div>
             Resultados de la Simulación
           </h2>
-          <p className="text-slate-500 mt-1 ml-0 sm:ml-13 text-sm">{m.alumnos_simulados} estudiantes por iteración · Promedio de {variables.iteraciones} iteraciones Montecarlo</p>
+          <p className="text-slate-500 mt-1 ml-0 sm:ml-13 text-sm">{m.alumnos_simulados} estudiantes simulados (Montecarlo)</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button onClick={handleDownloadZip} className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white px-4 sm:px-5 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all text-xs sm:text-sm animate-pulse hover:animate-none">

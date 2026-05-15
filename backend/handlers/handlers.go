@@ -15,14 +15,53 @@ import (
 	"github.com/jsk11L/Simulador-PUCV/models"
 )
 
-// DB es la referencia a la base de datos. Se configura desde main.
-var DB *gorm.DB
+// API agrupa los handlers HTTP y sus dependencias. Sustituye al patrón
+// previo de variables globales mutables (DB, JWTSecret) que impedía
+// testing aislado y inyección explícita de dependencias.
+type API struct {
+	DB     *gorm.DB
+	Secret []byte
+}
+
+// NewAPI construye una nueva instancia con sus dependencias inyectadas.
+func NewAPI(db *gorm.DB, secret []byte) *API {
+	return &API{DB: db, Secret: secret}
+}
+
+// Mount registra todas las rutas (públicas y protegidas) sobre el router.
+func (a *API) Mount(r *gin.Engine) {
+	api := r.Group("/api")
+	{
+		api.POST("/register", a.Register)
+		api.POST("/login", a.Login)
+
+		protegido := api.Group("")
+		protegido.Use(middleware.NewAuthMiddleware(a.Secret))
+		{
+			protegido.POST("/simular", a.SimularHandler)
+
+			protegido.POST("/mallas", a.CrearMallaHandler)
+			protegido.GET("/mallas", a.ListarMallasHandler)
+			protegido.GET("/mallas/:id", a.ObtenerMallaHandler)
+			protegido.PUT("/mallas/:id", a.ActualizarMallaHandler)
+			protegido.DELETE("/mallas/:id", a.EliminarMallaHandler)
+
+			protegido.GET("/resultados", a.ListarResultadosHandler)
+			protegido.GET("/resultados/:id", a.ObtenerResultadoHandler)
+
+			protegido.GET("/exportar", a.ExportarDatosHandler)
+
+			protegido.GET("/admin/usuarios", a.ListarUsuariosAdmin)
+			protegido.PATCH("/admin/usuarios/:id", a.AprobarUsuarioAdmin)
+		}
+	}
+}
 
 // ==========================================
 // AUTENTICACIÓN
 // ==========================================
 
-func Register(c *gin.Context) {
+func (a *API) Register(c *gin.Context) {
 	type RegisterInput struct {
 		Email    string `json:"email" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -34,14 +73,14 @@ func Register(c *gin.Context) {
 	}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	usuario := models.Usuario{Email: input.Email, PasswordHash: string(hashedPassword)}
-	if err := DB.Create(&usuario).Error; err != nil {
+	if err := a.DB.Create(&usuario).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El email ya está registrado"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Registro exitoso. Esperando aprobación."})
 }
 
-func Login(c *gin.Context) {
+func (a *API) Login(c *gin.Context) {
 	type LoginInput struct {
 		Email    string `json:"email" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -52,7 +91,7 @@ func Login(c *gin.Context) {
 		return
 	}
 	var usuario models.Usuario
-	if err := DB.Where("email = ?", input.Email).First(&usuario).Error; err != nil {
+	if err := a.DB.Where("email = ?", input.Email).First(&usuario).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
 		return
 	}
@@ -69,7 +108,7 @@ func Login(c *gin.Context) {
 		"is_admin":   usuario.IsAdmin,
 		"exp":        time.Now().Add(time.Hour * 72).Unix(),
 	})
-	tokenString, _ := token.SignedString(middleware.JWTSecret)
+	tokenString, _ := token.SignedString(a.Secret)
 	c.JSON(http.StatusOK, gin.H{"token": tokenString, "is_admin": usuario.IsAdmin})
 }
 
@@ -77,14 +116,14 @@ func Login(c *gin.Context) {
 // SIMULACIÓN
 // ==========================================
 
-func SimularHandler(c *gin.Context) {
+func (a *API) SimularHandler(c *gin.Context) {
 	var req models.SimularRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido: " + err.Error()})
 		return
 	}
-	if req.Variables.Iteraciones <= 0 {
-		req.Variables.Iteraciones = 15000
+	if req.Variables.NE <= 0 {
+		req.Variables.NE = engine.DefaultNE
 	}
 
 	resultados := engine.EjecutarMontecarlo(req)
@@ -127,7 +166,7 @@ func SimularHandler(c *gin.Context) {
 			VariablesJSON:     string(varsBytes),
 			ModeloJSON:        string(modeloBytes),
 		}
-		DB.Create(&resDB)
+		a.DB.Create(&resDB)
 
 		c.JSON(http.StatusOK, gin.H{
 			"resultado_id":            resDB.ID,
@@ -149,7 +188,7 @@ func SimularHandler(c *gin.Context) {
 // CRUD MALLAS
 // ==========================================
 
-func CrearMallaHandler(c *gin.Context) {
+func (a *API) CrearMallaHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 
@@ -171,7 +210,7 @@ func CrearMallaHandler(c *gin.Context) {
 		TotalSemestres: body.TotalSemestres,
 		Asignaturas:    string(asigBytes),
 	}
-	if err := DB.Create(&malla).Error; err != nil {
+	if err := a.DB.Create(&malla).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar la malla"})
 		return
 	}
@@ -183,12 +222,12 @@ func CrearMallaHandler(c *gin.Context) {
 	})
 }
 
-func ListarMallasHandler(c *gin.Context) {
+func (a *API) ListarMallasHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 
 	var mallas []models.MallaGuardadaDB
-	DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallas)
+	a.DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallas)
 
 	type MallaResponse struct {
 		ID             string                     `json:"id"`
@@ -216,13 +255,13 @@ func ListarMallasHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func ObtenerMallaHandler(c *gin.Context) {
+func (a *API) ObtenerMallaHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 	mallaID := c.Param("id")
 
 	var malla models.MallaGuardadaDB
-	if err := DB.Where("id = ? AND usuario_id = ?", mallaID, uid).First(&malla).Error; err != nil {
+	if err := a.DB.Where("id = ? AND usuario_id = ?", mallaID, uid).First(&malla).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Malla no encontrada"})
 		return
 	}
@@ -240,13 +279,13 @@ func ObtenerMallaHandler(c *gin.Context) {
 	})
 }
 
-func ActualizarMallaHandler(c *gin.Context) {
+func (a *API) ActualizarMallaHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 	mallaID := c.Param("id")
 
 	var malla models.MallaGuardadaDB
-	if err := DB.Where("id = ? AND usuario_id = ?", mallaID, uid).First(&malla).Error; err != nil {
+	if err := a.DB.Where("id = ? AND usuario_id = ?", mallaID, uid).First(&malla).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Malla no encontrada"})
 		return
 	}
@@ -272,16 +311,16 @@ func ActualizarMallaHandler(c *gin.Context) {
 		malla.Asignaturas = string(asigBytes)
 	}
 
-	DB.Save(&malla)
+	a.DB.Save(&malla)
 	c.JSON(http.StatusOK, gin.H{"mensaje": "Malla actualizada"})
 }
 
-func EliminarMallaHandler(c *gin.Context) {
+func (a *API) EliminarMallaHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 	mallaID := c.Param("id")
 
-	result := DB.Where("id = ? AND usuario_id = ?", mallaID, uid).Delete(&models.MallaGuardadaDB{})
+	result := a.DB.Where("id = ? AND usuario_id = ?", mallaID, uid).Delete(&models.MallaGuardadaDB{})
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Malla no encontrada"})
 		return
@@ -293,12 +332,12 @@ func EliminarMallaHandler(c *gin.Context) {
 // CRUD RESULTADOS
 // ==========================================
 
-func ListarResultadosHandler(c *gin.Context) {
+func (a *API) ListarResultadosHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 
 	var resultados []models.ResultadoSimulacionDB
-	DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultados)
+	a.DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultados)
 
 	type ResultadoListItem struct {
 		ID               string                  `json:"id"`
@@ -326,13 +365,13 @@ func ListarResultadosHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func ObtenerResultadoHandler(c *gin.Context) {
+func (a *API) ObtenerResultadoHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 	resID := c.Param("id")
 
 	var res models.ResultadoSimulacionDB
-	if err := DB.Where("id = ? AND usuario_id = ?", resID, uid).First(&res).Error; err != nil {
+	if err := a.DB.Where("id = ? AND usuario_id = ?", resID, uid).First(&res).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Resultado no encontrado"})
 		return
 	}
@@ -376,13 +415,13 @@ func ObtenerResultadoHandler(c *gin.Context) {
 // EXPORTACIÓN DE DATOS
 // ==========================================
 
-func ExportarDatosHandler(c *gin.Context) {
+func (a *API) ExportarDatosHandler(c *gin.Context) {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 
 	// Obtener mallas
 	var mallasDB []models.MallaGuardadaDB
-	DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallasDB)
+	a.DB.Where("usuario_id = ?", uid).Order("updated_at DESC").Find(&mallasDB)
 
 	type MallaExp struct {
 		ID             string                     `json:"id"`
@@ -404,7 +443,7 @@ func ExportarDatosHandler(c *gin.Context) {
 
 	// Obtener resultados con toda la data deserializada
 	var resultadosDB []models.ResultadoSimulacionDB
-	DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultadosDB)
+	a.DB.Where("usuario_id = ?", uid).Order("created_at DESC").Find(&resultadosDB)
 
 	type ResultadoExp struct {
 		ID               string                         `json:"id"`
@@ -471,12 +510,12 @@ func ExportarDatosHandler(c *gin.Context) {
 // ==========================================
 
 // checkIsAdmin verifica que el usuario autenticado sea admin
-func checkIsAdmin(c *gin.Context) bool {
+func (a *API) checkIsAdmin(c *gin.Context) bool {
 	usuarioID, _ := c.Get("usuario_id")
 	uid := usuarioID.(string)
 
 	var usuario models.Usuario
-	if err := DB.Where("id = ?", uid).First(&usuario).Error; err != nil {
+	if err := a.DB.Where("id = ?", uid).First(&usuario).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no encontrado"})
 		return false
 	}
@@ -487,13 +526,13 @@ func checkIsAdmin(c *gin.Context) bool {
 	return true
 }
 
-func ListarUsuariosAdmin(c *gin.Context) {
-	if !checkIsAdmin(c) {
+func (a *API) ListarUsuariosAdmin(c *gin.Context) {
+	if !a.checkIsAdmin(c) {
 		return
 	}
 
 	var usuarios []models.Usuario
-	DB.Order("created_at DESC").Find(&usuarios)
+	a.DB.Order("created_at DESC").Find(&usuarios)
 
 	type UsuarioResponse struct {
 		ID         string    `json:"id"`
@@ -517,8 +556,8 @@ func ListarUsuariosAdmin(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-func AprobarUsuarioAdmin(c *gin.Context) {
-	if !checkIsAdmin(c) {
+func (a *API) AprobarUsuarioAdmin(c *gin.Context) {
+	if !a.checkIsAdmin(c) {
 		return
 	}
 
@@ -532,7 +571,7 @@ func AprobarUsuarioAdmin(c *gin.Context) {
 		return
 	}
 
-	result := DB.Model(&models.Usuario{}).Where("id = ?", userID).Update("is_approved", body.IsApproved)
+	result := a.DB.Model(&models.Usuario{}).Where("id = ?", userID).Update("is_approved", body.IsApproved)
 	if result.RowsAffected == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 		return

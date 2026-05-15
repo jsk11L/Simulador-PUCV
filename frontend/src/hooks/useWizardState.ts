@@ -5,12 +5,11 @@ import { MIN_SEMESTRES } from '../constants/wizard';
 const DEFAULT_MALLA_NOMBRE = 'Plan de Estudios (Base)';
 
 const DEFAULT_VARIABLES: VariablesSimulacion = {
-  ne: 150,
+  ne: 15000,
   ncsmax: 21,
   tamin: 12.3,
   naptamin: 10,
   opor: 6,
-  iteraciones: 15000,
 };
 
 const DEFAULT_MODELO_CALIF: ModeloCalificaciones = {

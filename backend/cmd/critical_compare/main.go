@@ -126,10 +126,10 @@ func tryLoadExactScenario(path string) (*scenarioInput, error) {
 func main() {
 	scenarioFilter := os.Getenv("SCENARIO_ID")
 	strictParity := os.Getenv("STRICT_PARITY") == "1"
-	iteraciones := 15000
-	if raw := os.Getenv("ITERATIONS"); raw != "" {
+	ne := engine.DefaultNE
+	if raw := os.Getenv("NE"); raw != "" {
 		if v, err := strconv.Atoi(raw); err == nil && v > 0 {
-			iteraciones = v
+			ne = v
 		}
 	}
 	seed := int64(20260416)
@@ -179,12 +179,11 @@ func main() {
 			Asignaturas:  malla,
 			Programacion: programacion,
 			Variables: models.VariablesPayload{
-				NE:           2,
+				NE:           ne,
 				NCSmax:       21,
 				TAmin:        12.3,
 				NapTAmin:     10,
 				Opor:         6,
-				Iteraciones:  iteraciones,
 				MaxSemestres: 0,
 				Seed:         seed,
 			},

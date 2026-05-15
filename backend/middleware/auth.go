@@ -8,11 +8,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// JWTSecret es la clave secreta para validar tokens. Se configura desde main.
-var JWTSecret []byte
-
-// AuthMiddleware valida el token JWT y extrae el usuario_id.
-func AuthMiddleware() gin.HandlerFunc {
+// NewAuthMiddleware retorna un middleware Gin que valida el JWT y extrae
+// el usuario_id al contexto. La clave secreta se inyecta vía parámetro
+// para evitar variables globales mutables.
+func NewAuthMiddleware(secret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -34,7 +33,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("método de firma inesperado: %v", token.Header["alg"])
 			}
-			return JWTSecret, nil
+			return secret, nil
 		})
 
 		if err != nil || !token.Valid {

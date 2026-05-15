@@ -21,7 +21,6 @@ type VariablesPayload struct {
 	TAmin        float64 `json:"tamin"`
 	NapTAmin     int     `json:"naptamin"`
 	Opor         int     `json:"opor"`
-	Iteraciones  int     `json:"iteraciones"`
 	MaxSemestres int     `json:"max_semestres,omitempty"`
 	Seed         int64   `json:"seed,omitempty"`
 }
