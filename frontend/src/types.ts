@@ -123,4 +123,82 @@ export type ActiveTab =
   | 'resultados_pasados'
   | 'mallas'
   | 'ayuda'
-  | 'admin';
+  | 'admin'
+  | 'simular_individual'
+  | 'generar_cohorte'
+  | 'calibracion';
+
+// ==========================================
+// SIMULACIÓN INDIVIDUAL (Backtesting)
+// ==========================================
+
+export type EstadoSubject = 'aprobado' | 'reprobado' | 'en_curso' | 'abandonado';
+export type CategoriaSubject = 'obligatoria' | 'fofu' | 'optativa';
+export type EstadoTrayectoria = '' | 'activa' | 'titulado' | 'eliminado_tamin' | 'eliminado_opor';
+
+export interface SubjectRecord {
+  sigla: string;
+  seccion?: string;
+  nombre?: string;
+  creditos: number;
+  nota?: number;
+  estado: EstadoSubject;
+  categoria: CategoriaSubject;
+}
+
+export interface SemesterRecord {
+  periodo: string;   // S1-2024, S2-2025, etc.
+  anio: number;
+  semestre: number;  // 1 o 2
+  cursos: SubjectRecord[];
+}
+
+export interface StudentHistory {
+  rut?: string;
+  nombre?: string;
+  carrera?: string;
+  estado?: EstadoTrayectoria;
+  semestres: SemesterRecord[];
+}
+
+export interface StudentProfile {
+  nombre: string;
+  esfuerzo: number;
+  disciplina: number;
+  tolerancia: number;
+}
+
+export interface ModifierWeights {
+  w_hist: number;
+  w_prereq: number;
+  w_stress: number;
+}
+
+export interface HistorialResumen {
+  RatioAprobacion: number;
+  CargaPromedio: number;
+  NotasAprobado: Record<string, number>;
+}
+
+export interface RamoProbabilidad {
+  sigla: string;
+  creditos: number;
+  semestre_nominal: number;
+  prob_aprobar: number;
+  intentos_prom: number;
+}
+
+export interface IndividualPrediction {
+  alumno_rut?: string;
+  historial_resumen: HistorialResumen;
+  delta_hist_avg: number;
+  delta_prereq_avg: number;
+  delta_stress_avg: number;
+  tasa_titulacion: number;
+  tasa_eliminado_tamin: number;
+  tasa_eliminado_opor: number;
+  semestres_hasta_cierre: number;
+  semestres_proyectados: number;
+  probabilidades_por_ramo: RamoProbabilidad[];
+  iteraciones: number;
+}

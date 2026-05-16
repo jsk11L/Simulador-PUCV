@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jsk11L/Simulador-PUCV/models"
 )
@@ -30,21 +31,52 @@ type goldenBaseline struct {
 }
 
 type scenarioDef struct {
-	ID     string
-	Label  string
-	NCSmax int
+	ID          string
+	Label       string
+	Descripcion string // Texto legible para reportes (qué cambia este escenario respecto a la base)
+	NCSmax      int
 }
 
 // criticalScenarios son los 7 escenarios del paper portados a JSON exacto
 // desde Civilelectrica93.xlsx. Permanecen como golden inputs del motor.
+// Descripciones tomadas de la Tabla 5 del paper Mendoza Baeza (2023).
 var criticalScenarios = []scenarioDef{
-	{ID: "caso_actual", Label: "Caso Actual"},
-	{ID: "pe", Label: "PE"},
-	{ID: "cas", Label: "CAS"},
-	{ID: "r_10", Label: "R-10"},
-	{ID: "r_mas_10", Label: "R+10"},
-	{ID: "r_10_gt_40", Label: "R-10>40"},
-	{ID: "pf", Label: "PF", NCSmax: 25},
+	{
+		ID:          "caso_actual",
+		Label:       "Caso Actual",
+		Descripcion: "Situación base de la carrera: malla y programación de docencia tal como se dictan hoy.",
+	},
+	{
+		ID:          "pe",
+		Label:       "Plan de Estudios estricto",
+		Descripcion: "Cada asignatura se dicta solamente en el semestre teórico que indica la malla (rigidez máxima).",
+	},
+	{
+		ID:          "cas",
+		Label:       "Asignaturas semestralizadas",
+		Descripcion: "Todas las asignaturas se ofrecen ambos semestres del año (flexibilidad máxima).",
+	},
+	{
+		ID:          "r_10",
+		Label:       "Reprobación global −10%",
+		Descripcion: "Se reduce un 10% la tasa de reprobación de TODAS las asignaturas (mejora docente generalizada).",
+	},
+	{
+		ID:          "r_mas_10",
+		Label:       "Reprobación global +10%",
+		Descripcion: "Se incrementa un 10% la tasa de reprobación de todas las asignaturas (escenario adverso).",
+	},
+	{
+		ID:          "r_10_gt_40",
+		Label:       "Mejora en ramos críticos",
+		Descripcion: "Reducción 10% de reprobación SOLO en las 11 asignaturas con tasa de fracaso superior al 40%.",
+	},
+	{
+		ID:          "pf",
+		Label:       "Propuesta Final",
+		Descripcion: "Combinación óptima: ramos críticos mejorados, 4 asignaturas anuales pasan a semestrales y se eleva el tope de créditos a 25.",
+		NCSmax:      25,
+	},
 }
 
 const (
@@ -315,4 +347,57 @@ func TestSmoke_DefaultNE(t *testing.T) {
 		t.Errorf("DefaultNE no aplicado: AlumnosSimulados=%v, want %d",
 			res.MetricasGlobales.AlumnosSimulados, DefaultNE)
 	}
+}
+
+// paperBaselines son los valores de la Tabla 5 del paper Mendoza Baeza (2023).
+// Compartido entre TestCriticalParity_PaperRange y TestGenerateReport_PaperVsGo.
+var paperBaselines = map[string]criticalMetrics{
+	"caso_actual": {PPE: 37.13, PSCE: 15.96, EE: 1.33, PEO: 4.04},
+	"pe":          {PPE: 11.19, PSCE: 16.51, EE: 1.38, PEO: 1.09},
+	"cas":         {PPE: 47.46, PSCE: 15.32, EE: 1.28, PEO: 7.95},
+	"r_10":        {PPE: 62.21, PSCE: 15.65, EE: 1.30, PEO: 12.14},
+	"r_mas_10":    {PPE: 16.56, PSCE: 16.25, EE: 1.35, PEO: 0.89},
+	"r_10_gt_40":  {PPE: 58.30, PSCE: 15.73, EE: 1.31, PEO: 10.06},
+	"pf":          {PPE: 75.11, PSCE: 14.57, EE: 1.21, PEO: 24.70},
+}
+
+// TestGenerateReport_PaperVsGo no valida tolerancias (ese rol lo cumple
+// TestCriticalParity_PaperRange). Su único propósito es producir los
+// artefactos visuales del contraste motor Go vs paper:
+//
+//	testdata/report.html — visual con colores
+//	testdata/report.csv  — datos planos para procesamiento
+//
+// Se ejecuta siempre que se corra `go test ./engine`. Los archivos quedan
+// en testdata/ y se sobreescriben cada vez.
+func TestGenerateReport_PaperVsGo(t *testing.T) {
+	tol := defaultReportTolerances
+	rows := make([]reportRow, 0, len(criticalScenarios))
+
+	for _, def := range criticalScenarios {
+		sc := loadScenario(t, def.ID)
+		motor := runScenario(t, sc, def, defaultNE, defaultSeed)
+
+		paper, ok := paperBaselines[def.ID]
+		if !ok {
+			t.Errorf("escenario %s sin baseline en paperBaselines", def.ID)
+			continue
+		}
+		rows = append(rows, buildReportRow(def.ID, def.Label, def.Descripcion, paper, motor, tol))
+	}
+	sortReportRows(rows)
+
+	htmlPath := filepath.Join("testdata", "report.html")
+	csvPath := filepath.Join("testdata", "report.csv")
+
+	htmlContent := renderReportHTML(rows, tol, time.Now())
+	csvContent := renderReportCSV(rows)
+
+	if err := os.WriteFile(htmlPath, []byte(htmlContent), 0o644); err != nil {
+		t.Fatalf("escribir %s: %v", htmlPath, err)
+	}
+	if err := os.WriteFile(csvPath, []byte(csvContent), 0o644); err != nil {
+		t.Fatalf("escribir %s: %v", csvPath, err)
+	}
+	t.Logf("reporte regenerado: %s + %s", htmlPath, csvPath)
 }

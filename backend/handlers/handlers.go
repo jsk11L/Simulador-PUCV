@@ -38,19 +38,30 @@ func (a *API) Mount(r *gin.Engine) {
 		protegido := api.Group("")
 		protegido.Use(middleware.NewAuthMiddleware(a.Secret))
 		{
+			// Simulación generacional (motor base del paper)
 			protegido.POST("/simular", a.SimularHandler)
 
+			// Simulación individual + backtesting (feature nuevo)
+			protegido.GET("/perfiles", a.ListarPerfiles)
+			protegido.POST("/generar-alumno", a.GenerarAlumno)
+			protegido.POST("/simular-individual", a.SimularIndividual)
+			protegido.POST("/backtest-cohorte", a.BacktestCohorte)
+
+			// CRUD mallas
 			protegido.POST("/mallas", a.CrearMallaHandler)
 			protegido.GET("/mallas", a.ListarMallasHandler)
 			protegido.GET("/mallas/:id", a.ObtenerMallaHandler)
 			protegido.PUT("/mallas/:id", a.ActualizarMallaHandler)
 			protegido.DELETE("/mallas/:id", a.EliminarMallaHandler)
 
+			// Resultados
 			protegido.GET("/resultados", a.ListarResultadosHandler)
 			protegido.GET("/resultados/:id", a.ObtenerResultadoHandler)
 
+			// Exportación
 			protegido.GET("/exportar", a.ExportarDatosHandler)
 
+			// Admin
 			protegido.GET("/admin/usuarios", a.ListarUsuariosAdmin)
 			protegido.PATCH("/admin/usuarios/:id", a.AprobarUsuarioAdmin)
 		}

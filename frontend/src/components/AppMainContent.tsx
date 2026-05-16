@@ -10,6 +10,10 @@ import UltimoResultadoView from './UltimoResultadoView';
 import LogView from './LogView';
 import AdminView from './AdminView';
 import HelpView from './HelpView';
+import SimularIndividualView from './SimularIndividualView';
+import GenerarCohorteView from './GenerarCohorteView';
+import CalibracionView from './CalibracionView';
+import ErrorBoundary from './ErrorBoundary';
 import type { Dispatch, RefObject, SetStateAction, WheelEventHandler } from 'react';
 
 type WizardStep = 1 | 2 | 3;
@@ -69,6 +73,8 @@ interface AppMainContentProps {
   handleRunSimulation: () => void;
   handleDownloadZip: () => void;
   handleToggleApproval: (userId: string, currentApproved: boolean) => void;
+  apiUrl: (path: string) => string;
+  onAbrirMallaGuardada: (malla: MallaGuardada) => void;
 }
 
 export default function AppMainContent({
@@ -126,6 +132,8 @@ export default function AppMainContent({
   handleRunSimulation,
   handleDownloadZip,
   handleToggleApproval,
+  apiUrl,
+  onAbrirMallaGuardada,
 }: AppMainContentProps) {
   const isMallaCreationView = activeTab === 'wizard' && wizardStep === 1;
 
@@ -229,7 +237,12 @@ export default function AppMainContent({
         </>
       )}
 
-      {activeTab === 'mallas' && <MallasGuardadasView mallasGuardadas={mallasGuardadas} />}
+      {activeTab === 'mallas' && (
+        <MallasGuardadasView
+          mallasGuardadas={mallasGuardadas}
+          onSelectMalla={onAbrirMallaGuardada}
+        />
+      )}
 
       {activeTab === 'resultados_pasados' && <ResultadosPasadosView resultadosPasados={resultadosPasados} />}
 
@@ -252,6 +265,24 @@ export default function AppMainContent({
 
       {activeTab === 'admin' && isAdmin && (
         <AdminView adminUsuarios={adminUsuarios} onToggleApproval={handleToggleApproval} />
+      )}
+
+      {activeTab === 'simular_individual' && (
+        <ErrorBoundary label="SimularIndividual">
+          <SimularIndividualView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === 'generar_cohorte' && (
+        <ErrorBoundary label="GenerarCohorte">
+          <GenerarCohorteView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} />
+        </ErrorBoundary>
+      )}
+
+      {activeTab === 'calibracion' && (
+        <ErrorBoundary label="Calibracion">
+          <CalibracionView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} />
+        </ErrorBoundary>
       )}
 
       {activeTab === 'ayuda' && <HelpView />}

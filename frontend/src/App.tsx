@@ -222,6 +222,15 @@ export default function App() {
     fileInputRef.current?.click();
   };
 
+  // Abre una malla guardada desde la vista de "Mis Mallas": carga al
+  // editor del wizard (paso 1) y navega allí.
+  const handleAbrirMallaGuardada = (malla: MallaGuardada) => {
+    loadMallaGuardada(malla);
+    setActiveTab('wizard');
+    setWizardStep(1);
+    setSidebarOpen(false);
+  };
+
   const validateIntegrityAndNext = () => {
     const errors = validateMallaIntegrity();
     if (errors.length > 0) setValidationErrors(errors);
@@ -405,6 +414,8 @@ export default function App() {
         handleRunSimulation={handleRunSimulation}
         handleDownloadZip={handleDownloadZip}
         handleToggleApproval={handleToggleApproval}
+        apiUrl={apiUrl}
+        onAbrirMallaGuardada={handleAbrirMallaGuardada}
       />
     </div>
   );

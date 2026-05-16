@@ -1,13 +1,15 @@
 import {
   Activity,
   BarChart,
-  FileText,
+  FlaskConical,
   HelpCircle,
-  History as HistoryIcon,
   LayoutGrid,
   LogOut,
   Play,
   Shield,
+  SlidersHorizontal,
+  User,
+  Users,
   X,
 } from 'lucide-react';
 import SidebarNavButton from './SidebarNavButton';
@@ -65,10 +67,17 @@ export default function AppSidebar({
         </button>
 
         <div className="pt-2">
-          <SidebarNavButton id="log" activeTab={activeTab} icon={<FileText />} label="Log Pasado" onClick={handleSidebarNav} />
           <SidebarNavButton id="ultimo_resultado" activeTab={activeTab} icon={<BarChart />} label="Último Resultado" onClick={handleSidebarNav} />
-          <SidebarNavButton id="resultados_pasados" activeTab={activeTab} icon={<HistoryIcon />} label="Resultados Pasados" onClick={handleSidebarNav} />
         </div>
+      </nav>
+
+      <div className="p-4 mt-4 text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+        <FlaskConical size={12} /> Predicción Individual
+      </div>
+      <nav className="px-4 space-y-1">
+        <SidebarNavButton id="simular_individual" activeTab={activeTab} icon={<User />} label="Simular Alumno" onClick={handleSidebarNav} />
+        <SidebarNavButton id="generar_cohorte" activeTab={activeTab} icon={<Users />} label="Generar Cohorte" onClick={handleSidebarNav} />
+        <SidebarNavButton id="calibracion" activeTab={activeTab} icon={<SlidersHorizontal />} label="Calibración" onClick={handleSidebarNav} />
       </nav>
 
       <div className="p-4 mt-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Biblioteca</div>

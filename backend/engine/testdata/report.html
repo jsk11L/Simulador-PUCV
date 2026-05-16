@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SimulaPUCV — Contraste Motor Go vs Paper</title>
+<style>
+:root {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --ok-bg: #064e3b;
+  --ok-fg: #6ee7b7;
+  --warn-bg: #78350f;
+  --warn-fg: #fcd34d;
+  --fail-bg: #7f1d1d;
+  --fail-fg: #fca5a5;
+  --paper: #475569;
+  --border: #334155;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 32px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+h1 { margin: 0 0 8px 0; font-size: 24px; font-weight: 800; }
+.subtitle { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+.legend {
+  display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap;
+  padding: 16px; background: var(--panel); border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.swatch { width: 14px; height: 14px; border-radius: 4px; }
+.swatch.ok   { background: var(--ok-fg); }
+.swatch.warn { background: var(--warn-fg); }
+.swatch.fail { background: var(--fail-fg); }
+.swatch.paper{ background: var(--paper); }
+table {
+  width: 100%; border-collapse: separate; border-spacing: 0;
+  background: var(--panel); border-radius: 12px; overflow: hidden;
+  border: 1px solid var(--border); font-size: 13px;
+}
+th, td { padding: 12px 14px; text-align: right; }
+th {
+  background: var(--panel-2); color: var(--text);
+  font-weight: 700; text-transform: uppercase;
+  font-size: 11px; letter-spacing: 0.5px;
+}
+th.scenario, td.scenario { text-align: left; }
+tbody tr { border-top: 1px solid var(--border); }
+tbody tr:hover { background: rgba(255,255,255,0.02); }
+.cell {
+  display: inline-flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px; border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.cell .v { font-weight: 700; font-size: 14px; }
+.cell .d { font-size: 11px; opacity: 0.85; }
+.cell.paper { background: rgba(71, 85, 105, 0.25); color: var(--text); }
+.cell.paper .v { color: var(--muted); }
+.cell.ok    { background: var(--ok-bg);   color: var(--ok-fg); }
+.cell.warn  { background: var(--warn-bg); color: var(--warn-fg); }
+.cell.fail  { background: var(--fail-bg); color: var(--fail-fg); }
+.scenario-name { font-weight: 700; font-size: 14px; }
+.scenario-id {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 2px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.scenario-desc {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 6px;
+  max-width: 520px;
+  line-height: 1.45;
+}
+.metric-group { display: flex; gap: 4px; justify-content: flex-end; }
+td.scenario { width: 38%; }
+footer {
+  margin-top: 24px; color: var(--muted); font-size: 12px;
+  text-align: center;
+}
+</style>
+</head>
+<body>
+<h1>Contraste Motor Go vs Paper (Tabla 5)</h1>
+<div class="subtitle">SimulaPUCV — Validación de paridad estadística contra <em>Mendoza Baeza (2023)</em></div>
+
+<div class="legend">
+  <div class="legend-item"><span class="swatch paper"></span> Valor del paper (referencia)</div>
+  <div class="legend-item"><span class="swatch ok"></span> Dentro de tolerancia estrecha</div>
+  <div class="legend-item"><span class="swatch warn"></span> Dentro de tolerancia amplia</div>
+  <div class="legend-item"><span class="swatch fail"></span> Fuera de tolerancia</div>
+</div>
+
+<table>
+<thead>
+<tr>
+  <th class="scenario">Escenario</th>
+  <th>PPE (%)</th>
+  <th>PSCE (sem)</th>
+  <th>EE</th>
+  <th>PEO (%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Caso Actual</div>
+    <div class="scenario-id">caso_actual</div>
+    <div class="scenario-desc">Situación base de la carrera: malla y programación de docencia tal como se dictan hoy.</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">37.13</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">38.60</span>
+        <span class="d">Δ +1.47</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">15.96</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">16.03</span>
+        <span class="d">Δ +0.07</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.33</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.34</span>
+        <span class="d">Δ +0.01</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">4.04</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">4.10</span>
+        <span class="d">Δ +0.06</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Plan de Estudios estricto</div>
+    <div class="scenario-id">pe</div>
+    <div class="scenario-desc">Cada asignatura se dicta solamente en el semestre teórico que indica la malla (rigidez máxima).</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">11.19</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">11.60</span>
+        <span class="d">Δ +0.41</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">16.51</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">16.58</span>
+        <span class="d">Δ +0.07</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.38</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.38</span>
+        <span class="d">Δ +0.00</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.09</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">0.65</span>
+        <span class="d">Δ -0.44</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Asignaturas semestralizadas</div>
+    <div class="scenario-id">cas</div>
+    <div class="scenario-desc">Todas las asignaturas se ofrecen ambos semestres del año (flexibilidad máxima).</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">47.46</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">49.65</span>
+        <span class="d">Δ +2.19</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">15.32</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">15.34</span>
+        <span class="d">Δ +0.02</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.28</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.28</span>
+        <span class="d">Δ +0.00</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">7.95</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">7.95</span>
+        <span class="d">Δ +0.00</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Reprobación global −10%</div>
+    <div class="scenario-id">r_10</div>
+    <div class="scenario-desc">Se reduce un 10% la tasa de reprobación de TODAS las asignaturas (mejora docente generalizada).</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">62.21</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">63.00</span>
+        <span class="d">Δ +0.79</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">15.65</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">15.63</span>
+        <span class="d">Δ -0.02</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.30</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.30</span>
+        <span class="d">Δ +0.00</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">12.14</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">13.45</span>
+        <span class="d">Δ +1.31</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Reprobación global +10%</div>
+    <div class="scenario-id">r_mas_10</div>
+    <div class="scenario-desc">Se incrementa un 10% la tasa de reprobación de todas las asignaturas (escenario adverso).</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">16.56</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">16.75</span>
+        <span class="d">Δ +0.19</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">16.25</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">16.34</span>
+        <span class="d">Δ +0.09</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.35</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.36</span>
+        <span class="d">Δ +0.01</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">0.89</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">0.70</span>
+        <span class="d">Δ -0.19</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Mejora en ramos críticos</div>
+    <div class="scenario-id">r_10_gt_40</div>
+    <div class="scenario-desc">Reducción 10% de reprobación SOLO en las 11 asignaturas con tasa de fracaso superior al 40%.</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">58.30</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">59.75</span>
+        <span class="d">Δ +1.45</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">15.73</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">15.79</span>
+        <span class="d">Δ +0.06</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.31</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">1.32</span>
+        <span class="d">Δ +0.01</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">10.06</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">9.40</span>
+        <span class="d">Δ -0.66</span>
+      </div>
+    </div>
+  </td>
+</tr>
+<tr>
+  <td class="scenario">
+    <div class="scenario-name">Propuesta Final</div>
+    <div class="scenario-id">pf</div>
+    <div class="scenario-desc">Combinación óptima: ramos críticos mejorados, 4 asignaturas anuales pasan a semestrales y se eleva el tope de créditos a 25.</div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">75.11</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">68.00</span>
+        <span class="d">Δ -7.11</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">14.57</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">14.85</span>
+        <span class="d">Δ +0.28</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">1.21</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell warn" title="Δ vs paper">
+        <span class="v">1.24</span>
+        <span class="d">Δ +0.03</span>
+      </div>
+    </div>
+  </td>
+  <td>
+    <div class="metric-group">
+      <div class="cell paper" title="Paper">
+        <span class="v">24.70</span>
+        <span class="d">paper</span>
+      </div>
+      <div class="cell ok" title="Δ vs paper">
+        <span class="v">18.50</span>
+        <span class="d">Δ -6.20</span>
+      </div>
+    </div>
+  </td>
+</tr>
+</tbody>
+</table>
+
+<footer>
+Tolerancias: PPE/PEO ±15.0 pp · PSCE ±0.50 sem · EE ±0.05 · Generado 2026-05-16 03:56:53
+</footer>
+</body>
+</html>
