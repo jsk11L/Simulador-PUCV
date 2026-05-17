@@ -83,6 +83,16 @@ type IndividualPrediction struct {
 	// Predicción ramo a ramo de los pendientes en la malla.
 	ProbabilidadesPorRamo []RamoProbabilidad `json:"probabilidades_por_ramo"`
 
+	// TrayectoriaProyectada es UNA realización representativa del futuro
+	// del alumno (semestres + cursos con sus notas simuladas), pensada
+	// para visualizarse como kanban. Se elige la iteración cuyo
+	// semestreFinal está cerca de la mediana de la cohorte interna.
+	//
+	// Estos semestres NO incluyen los del historial — son solo los
+	// proyectados desde el punto de corte hacia el futuro. El frontend
+	// los concatena con el historial al renderizar.
+	TrayectoriaProyectada []models.SemesterRecord `json:"trayectoria_proyectada"`
+
 	// Total de iteraciones efectivamente corridas.
 	Iteraciones int `json:"iteraciones"`
 }
@@ -128,6 +138,12 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 	sumDeltaStress := 0.0
 	contadoresDelta := 0
 
+	// Guardamos todas las trayectorias proyectadas para elegir después la
+	// "representativa" (mediana por semestreFinal). Memoria razonable:
+	// iter ≤ ~1000, semestres ≤ 30, cursos ≤ ~8 por semestre.
+	trayectorias := make([][]models.SemesterRecord, 0, iter)
+	semestresFinales := make([]int, 0, iter)
+
 	for it := 0; it < iter; it++ {
 		hist := simularFuturoUnaVez(rng, cfg, malla, resumen, aprobadosPrevios)
 
@@ -153,6 +169,9 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 		sumDeltaPrereq += hist.sumDeltaPrereq
 		sumDeltaStress += hist.sumDeltaStress
 		contadoresDelta += hist.contadoresDelta
+
+		trayectorias = append(trayectorias, hist.semestresProyectados)
+		semestresFinales = append(semestresFinales, hist.semestreFinal)
 	}
 
 	pred := IndividualPrediction{
@@ -173,6 +192,11 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 		pred.DeltaPrereqAvg = sumDeltaPrereq / float64(contadoresDelta)
 		pred.DeltaStressAvg = sumDeltaStress / float64(contadoresDelta)
 	}
+
+	// Elegir trayectoria representativa: aquella cuyo `semestreFinal` está
+	// cerca de la mediana del conjunto. Da una proyección "típica" en vez
+	// de un outlier.
+	pred.TrayectoriaProyectada = elegirTrayectoriaRepresentativa(trayectorias, semestresFinales)
 
 	// Construir tabla de probabilidades para ramos pendientes (que NO estaban aprobados).
 	probs := make([]RamoProbabilidad, 0)
@@ -219,6 +243,11 @@ type trayectoriaResumen struct {
 	sumDeltaPrereq  float64
 	sumDeltaStress  float64
 	contadoresDelta int
+
+	// semestresProyectados captura los SemesterRecords generados durante
+	// la trayectoria futura. Usado para devolver una iteración
+	// representativa al frontend (kanban del futuro proyectado).
+	semestresProyectados []models.SemesterRecord
 }
 
 // simularFuturoUnaVez corre UNA trayectoria futura del alumno desde el
@@ -260,6 +289,12 @@ func simularFuturoUnaVez(
 
 	historialOportunidad := make(map[string]int)
 	pendientesEval := make([]string, 0)
+
+	// Inicializar la lista de semestres proyectados. Cada iteración va
+	// agregando uno por semestre simulado con sus cursos para visualizar
+	// como kanban del futuro.
+	tr.semestresProyectados = make([]models.SemesterRecord, 0)
+	periodoBase := periodoBaseDesdeHistorial(cfg.History)
 
 	for tr.estado == models.Activo {
 		if semestreActual > maxSem {
@@ -335,6 +370,15 @@ func simularFuturoUnaVez(
 			break
 		}
 
+		// Construir el SemesterRecord proyectado de este semestre.
+		anio, semPar, periodoID := siguientePeriodo(periodoBase, len(tr.semestresProyectados))
+		semRecord := models.SemesterRecord{
+			Periodo:  periodoID,
+			Anio:     anio,
+			Semestre: semPar,
+			Cursos:   make([]models.SubjectRecord, 0, len(pendientesEval)),
+		}
+
 		// Evaluar cada ramo aplicando modificadores δ.
 		for _, sigla := range pendientesEval {
 			asig := malla.Mapa[sigla]
@@ -356,14 +400,30 @@ func simularFuturoUnaVez(
 			tr.intentos[sigla]++
 			historialOportunidad[sigla]++
 
+			// Generar nota numérica para visualización en el kanban.
+			nota := generarNotaProyectada(rng, resumen, aprobado)
+
+			estado := models.SubjectReprobado
 			if aprobado {
+				estado = models.SubjectAprobado
 				tr.aprobados[sigla] = true
 				creditosAprobados += asig.Cred
-			} else if cfg.Variables.Opor > 0 && historialOportunidad[sigla] >= cfg.Variables.Opor {
+			}
+			semRecord.Cursos = append(semRecord.Cursos, models.SubjectRecord{
+				Sigla:     sigla,
+				Creditos:  asig.Cred,
+				Nota:      nota,
+				Estado:    estado,
+				Categoria: models.CategoriaObligatoria,
+			})
+
+			if !aprobado && cfg.Variables.Opor > 0 && historialOportunidad[sigla] >= cfg.Variables.Opor {
 				tr.estado = models.EliminadoOpor
 				break
 			}
 		}
+
+		tr.semestresProyectados = append(tr.semestresProyectados, semRecord)
 		if tr.estado != models.Activo {
 			break
 		}
@@ -416,4 +476,99 @@ func cerrarTrayectoria(malla mallaContext, aprobados map[string]bool) models.Est
 func esRamoDeLaMalla(malla mallaContext, sigla string) bool {
 	_, ok := malla.Mapa[sigla]
 	return ok
+}
+
+// periodoBase describe el primer período proyectado (el siguiente al
+// último del historial). Si el alumno no tiene historial, se asume
+// S1-2024 como referencia.
+type periodoBaseRef struct {
+	Anio     int
+	Semestre int // 1 o 2
+}
+
+func periodoBaseDesdeHistorial(h models.StudentHistory) periodoBaseRef {
+	const anioDefault = 2024
+	if len(h.Semestres) == 0 {
+		return periodoBaseRef{Anio: anioDefault, Semestre: 1}
+	}
+	ult := h.Semestres[len(h.Semestres)-1]
+	if ult.Anio == 0 || (ult.Semestre != 1 && ult.Semestre != 2) {
+		return periodoBaseRef{Anio: anioDefault, Semestre: 1}
+	}
+	// Avanzar al siguiente período.
+	if ult.Semestre == 1 {
+		return periodoBaseRef{Anio: ult.Anio, Semestre: 2}
+	}
+	return periodoBaseRef{Anio: ult.Anio + 1, Semestre: 1}
+}
+
+// siguientePeriodo devuelve el (anio, semestre 1|2, "SX-AAAA") del
+// período proyectado en el índice `idx` (0-based) a partir de la base.
+func siguientePeriodo(base periodoBaseRef, idx int) (anio, semestre int, periodoID string) {
+	totalOffset := (base.Semestre - 1) + idx
+	anio = base.Anio + totalOffset/2
+	semestre = (totalOffset % 2) + 1
+	periodoID = fmt.Sprintf("S%d-%d", semestre, anio)
+	return anio, semestre, periodoID
+}
+
+// elegirTrayectoriaRepresentativa devuelve la trayectoria cuyo
+// semestreFinal está cerca de la mediana del conjunto. Si no hay
+// iteraciones, devuelve un slice vacío (NUNCA nil, para evitar JSON null).
+func elegirTrayectoriaRepresentativa(trayectorias [][]models.SemesterRecord, finales []int) []models.SemesterRecord {
+	if len(trayectorias) == 0 {
+		return make([]models.SemesterRecord, 0)
+	}
+	// Ordenar índices por semestreFinal y elegir la mediana.
+	idx := make([]int, len(finales))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(i, j int) bool {
+		return finales[idx[i]] < finales[idx[j]]
+	})
+	chosen := idx[len(idx)/2]
+	out := trayectorias[chosen]
+	if out == nil {
+		return make([]models.SemesterRecord, 0)
+	}
+	return out
+}
+
+// generarNotaProyectada genera una nota numérica realista para un curso
+// proyectado, usando el ratio histórico del alumno como proxy de esfuerzo.
+//
+// Espeja la lógica de simulateGradeOnRamo en el generador, pero sin
+// perfil sintético (el motor individual no lo conoce).
+func generarNotaProyectada(rng *rand.Rand, resumen HistorialResumen, aprobado bool) float64 {
+	// Proxy del esfuerzo: ratio histórico clampado a [0,1].
+	esfuerzo := resumen.RatioAprobacion
+	if esfuerzo < 0 {
+		esfuerzo = 0
+	}
+	if esfuerzo > 1 {
+		esfuerzo = 1
+	}
+
+	var mu, sigma float64
+	if aprobado {
+		mu, sigma = 4.5+1.5*esfuerzo, 0.7
+	} else {
+		mu, sigma = 2.5+1.0*esfuerzo, 0.6
+	}
+	nota := mu + sigma*rng.NormFloat64()
+	if nota < 1.0 {
+		nota = 1.0
+	}
+	if nota > 7.0 {
+		nota = 7.0
+	}
+	// Coherencia: aprobado ≥ 4.0, reprobado < 4.0
+	if aprobado && nota < 4.0 {
+		nota = 4.0
+	}
+	if !aprobado && nota >= 4.0 {
+		nota = 3.9
+	}
+	return math.Round(nota*10) / 10
 }

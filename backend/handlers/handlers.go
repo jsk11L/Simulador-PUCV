@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +22,14 @@ import (
 type API struct {
 	DB     *gorm.DB
 	Secret []byte
+	// Standalone: cuando es true, /api/info anuncia modo standalone al
+	// frontend, no se exige token (middleware standalone usa LocalUserID)
+	// y el primer Register se auto-aprueba como admin. Modo ejecutable
+	// single-user.
+	Standalone bool
+	// LocalUserID: ID del usuario local pre-creado en modo standalone.
+	// Todas las requests operan bajo este ID, no hay login.
+	LocalUserID string
 }
 
 // NewAPI construye una nueva instancia con sus dependencias inyectadas.
@@ -32,17 +41,30 @@ func NewAPI(db *gorm.DB, secret []byte) *API {
 func (a *API) Mount(r *gin.Engine) {
 	api := r.Group("/api")
 	{
+		// /api/info siempre público — el frontend lo consulta al cargar
+		// para saber si está en modo servidor o standalone (en standalone
+		// no pinta la pantalla de login).
+		api.GET("/info", a.Info)
 		api.POST("/register", a.Register)
 		api.POST("/login", a.Login)
+		// Shutdown: solo opera en modo standalone (el handler chequea).
+		api.POST("/shutdown", a.Shutdown)
 
+		// En standalone, el middleware ignora el token y usa el usuario
+		// local pre-creado. En servidor, valida JWT normalmente.
 		protegido := api.Group("")
-		protegido.Use(middleware.NewAuthMiddleware(a.Secret))
+		if a.Standalone {
+			protegido.Use(middleware.NewStandaloneAuthMiddleware(a.LocalUserID))
+		} else {
+			protegido.Use(middleware.NewAuthMiddleware(a.Secret))
+		}
 		{
 			// Simulación generacional (motor base del paper)
 			protegido.POST("/simular", a.SimularHandler)
 
 			// Simulación individual + backtesting (feature nuevo)
 			protegido.GET("/perfiles", a.ListarPerfiles)
+			protegido.GET("/scenarios/:id", a.ObtenerScenario)
 			protegido.POST("/generar-alumno", a.GenerarAlumno)
 			protegido.POST("/simular-individual", a.SimularIndividual)
 			protegido.POST("/backtest-cohorte", a.BacktestCohorte)
@@ -72,6 +94,33 @@ func (a *API) Mount(r *gin.Engine) {
 // AUTENTICACIÓN
 // ==========================================
 
+// Info expone metadata del runtime al frontend. Es público y barato:
+// el frontend lo llama al cargar para decidir si pinta pantalla de login
+// (modo servidor) o entra directo (modo standalone).
+func (a *API) Info(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"standalone": a.Standalone,
+	})
+}
+
+// Shutdown apaga el proceso del binario portable. Sólo disponible en
+// modo standalone — en servidor responde 404 (sería un agujero de
+// seguridad permitir que cualquier usuario apague el server).
+//
+// Se responde primero y se llama os.Exit en una goroutine para que la
+// respuesta llegue al frontend antes del cierre.
+func (a *API) Shutdown(c *gin.Context) {
+	if !a.Standalone {
+		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Apagando SimulaPUCV..."})
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		os.Exit(0)
+	}()
+}
+
 func (a *API) Register(c *gin.Context) {
 	type RegisterInput struct {
 		Email    string `json:"email" binding:"required"`
@@ -83,9 +132,28 @@ func (a *API) Register(c *gin.Context) {
 		return
 	}
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-	usuario := models.Usuario{Email: input.Email, PasswordHash: string(hashedPassword)}
+
+	// En modo standalone (ejecutable single-user), el primer registro se
+	// auto-aprueba como admin: no hay nadie más que pueda aprobarlo.
+	isFirstUser := false
+	if a.Standalone {
+		var count int64
+		a.DB.Model(&models.Usuario{}).Count(&count)
+		isFirstUser = count == 0
+	}
+
+	usuario := models.Usuario{
+		Email:        input.Email,
+		PasswordHash: string(hashedPassword),
+		IsApproved:   isFirstUser,
+		IsAdmin:      isFirstUser,
+	}
 	if err := a.DB.Create(&usuario).Error; err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "El email ya está registrado"})
+		return
+	}
+	if isFirstUser {
+		c.JSON(http.StatusOK, gin.H{"message": "Registro exitoso. Primer usuario auto-aprobado como administrador."})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Registro exitoso. Esperando aprobación."})

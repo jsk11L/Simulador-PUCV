@@ -16,7 +16,7 @@ export default function MallasGuardadasView({ mallasGuardadas, onSelectMalla }: 
             <h2 className="text-2xl font-bold text-slate-800">Tus Mallas Guardadas</h2>
             {onSelectMalla && (
               <p className="text-sm text-slate-500 mt-0.5">
-                Hacé click en una malla para abrirla en el editor.
+                Haz click en una malla para abrirla en el editor.
               </p>
             )}
           </div>

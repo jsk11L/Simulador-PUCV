@@ -47,6 +47,30 @@ func (a *API) ListarPerfiles(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"perfiles": presets})
 }
 
+// ObtenerScenario devuelve la malla y programación de un escenario fijo
+// del paper. Lo usa el frontend del "flujo manual" para construir el
+// kanban interactivo del alumno sobre los ramos reales de la malla.
+//
+// GET /api/scenarios/:id
+func (a *API) ObtenerScenario(c *gin.Context) {
+	id := c.Param("id")
+	sc, err := cargarScenarioJSON(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "escenario inválido: " + err.Error()})
+		return
+	}
+	ncsmax := 21
+	if ovr, ok := scenarioOverrides[id]; ok && ovr.NCSmax != 0 {
+		ncsmax = ovr.NCSmax
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id":           id,
+		"asignaturas":  sc.Asignaturas,
+		"programacion": sc.Programacion,
+		"ncsmax":       ncsmax,
+	})
+}
+
 // GenerarAlumnoInput es el body del endpoint de generación.
 //
 // Para la malla, dos modos mutuamente excluyentes:

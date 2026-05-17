@@ -37,6 +37,8 @@ interface Props {
   /** Etiqueta del label del select. */
   label?: string;
   className?: string;
+  /** Si true, oculta el optgroup de escenarios fijos del paper (modo portable). */
+  hideFixedScenarios?: boolean;
 }
 
 /**
@@ -51,6 +53,7 @@ export default function ScenarioSelector({
   mallasGuardadas,
   label = 'Escenario',
   className,
+  hideFixedScenarios = false,
 }: Props) {
   // Index para resolver rápido al cambiar el select.
   const mallasById = useMemo(() => {
@@ -95,13 +98,15 @@ export default function ScenarioSelector({
           'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white'
         }
       >
-        <optgroup label="Escenarios del paper">
-          {ESCENARIOS_FIJOS.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </optgroup>
+        {!hideFixedScenarios && (
+          <optgroup label="Escenarios del paper">
+            {ESCENARIOS_FIJOS.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </optgroup>
+        )}
         {mallasGuardadas.length > 0 && (
           <optgroup label="Mis mallas guardadas">
             {mallasGuardadas.map((m) => (
@@ -110,6 +115,11 @@ export default function ScenarioSelector({
               </option>
             ))}
           </optgroup>
+        )}
+        {hideFixedScenarios && mallasGuardadas.length === 0 && (
+          <option value="" disabled>
+            Guarde una malla primero para usar esta función
+          </option>
         )}
       </select>
     </div>

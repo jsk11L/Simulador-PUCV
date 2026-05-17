@@ -139,17 +139,11 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 	}
 
 	for estado == models.Activo {
-		if semestreActual >= maxSemSimulado {
-			// Corte explícito por configuración del generador.
-			if cfg.UntilSemestre > 0 && semestreActual == cfg.UntilSemestre {
-				hist.Estado = models.TrayectoriaActiva
-			} else {
-				estado = models.EliminadoTAmin
-			}
-			break
-		}
-
-		// Evaluar pendientes del semestre anterior (los que se inscribieron al avanzar)
+		// Evaluar pendientes del semestre anterior (los ramos que se
+		// inscribieron al avanzar a este semestre) ANTES de revisar el
+		// corte por UntilSemestre. Si no, cuando UntilSemestre=N, el
+		// semestre N queda sin sus ramos evaluados (inscritos pero
+		// nunca jugados).
 		if semestreActual > 1 && len(pendientesEval) > 0 {
 			for _, sigla := range pendientesEval {
 				asig, ok := malla.Mapa[sigla]
@@ -183,6 +177,7 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 					Categoria: models.CategoriaObligatoria,
 				})
 			}
+			pendientesEval = pendientesEval[:0]
 
 			if estado == models.Activo && semestreActual >= cfg.Variables.NapTAmin {
 				if float64(creditosAprobados)/float64(semestreActual) < cfg.Variables.TAmin {
@@ -192,6 +187,17 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 			if estado != models.Activo {
 				break
 			}
+		}
+
+		if semestreActual >= maxSemSimulado {
+			// Corte por configuración del generador (UntilSemestre) o por
+			// haber alcanzado MaxSemestres natural.
+			if cfg.UntilSemestre > 0 && semestreActual == cfg.UntilSemestre {
+				hist.Estado = models.TrayectoriaActiva
+			} else {
+				estado = models.EliminadoTAmin
+			}
+			break
 		}
 
 		// Avanzar al siguiente semestre
@@ -251,10 +257,19 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 			}
 		}
 
-		// Inscribir respetando carga preferida (la tolerancia del alumno) y NCSmax
-		cargaTarget := cfg.Profile.cargaPreferida()
-		if cargaTarget > cfg.Variables.NCSmax {
+		// Inscribir respetando carga preferida (la tolerancia del alumno) y NCSmax.
+		// EXCEPCIÓN: cuando se solicita un corte explícito (UntilSemestre > 0),
+		// el alumno carga al MÁXIMO posible (NCSmax). Razón: si el usuario quiere
+		// un alumno "hasta sem N", espera que cada semestre esté lo más lleno
+		// posible — no queremos huecos que después la proyección "rellene".
+		var cargaTarget int
+		if cfg.UntilSemestre > 0 {
 			cargaTarget = cfg.Variables.NCSmax
+		} else {
+			cargaTarget = cfg.Profile.cargaPreferida()
+			if cargaTarget > cfg.Variables.NCSmax {
+				cargaTarget = cfg.Variables.NCSmax
+			}
 		}
 		pendientesEval = pendientesEval[:0]
 		creditosInscritos := 0

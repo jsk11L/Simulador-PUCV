@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { 
+import React, { useEffect, useState, useRef } from 'react';
+import {
 } from 'lucide-react';
 import type { AdminUsuario, MallaGuardada, MallaGuardadaApi, ResultadoPasado } from './types';
 import ValidationErrorsModal from './components/ValidationErrorsModal';
@@ -15,6 +15,7 @@ import useSimulationActions from './hooks/useSimulationActions';
 import useAuth from './hooks/useAuth';
 import useAppNavigation from './hooks/useAppNavigation';
 import useMallaPersistence from './hooks/useMallaPersistence';
+import useRuntimeMode from './hooks/useRuntimeMode';
 import { MAX_SEMESTRES, MIN_SEMESTRES } from './constants/wizard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -241,9 +242,32 @@ export default function App() {
   };
 
   // ==========================================
-  // RENDER: LOGIN
+  // RENDER: MODO RUNTIME (standalone vs servidor)
   // ==========================================
-  if (!isAuthenticated) {
+  // /api/info dice si el backend corre en modo portable (single-user, sin
+  // login) o en modo servidor (auth normal). En standalone se saltea la
+  // pantalla de login y se cargan las mallas del usuario local pre-creado.
+  const runtimeInfo = useRuntimeMode(apiUrl);
+  const standalone = runtimeInfo?.standalone === true;
+  const isLoggedIn = standalone || isAuthenticated;
+
+  useEffect(() => {
+    if (standalone) {
+      fetchMallasGuardadas();
+      fetchResultadosPasados();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [standalone]);
+
+  if (runtimeInfo === null) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-600 text-sm">
+        Cargando SimulaPUCV...
+      </div>
+    );
+  }
+
+  if (!isLoggedIn) {
     return (
       <AuthView
         authMode={authMode}
@@ -301,6 +325,26 @@ export default function App() {
   };
 
   // ==========================================
+  // APAGAR EL BINARIO PORTABLE
+  // ==========================================
+  // Pide al backend /api/shutdown, que llama a os.Exit en una goroutine.
+  // Después muestra un mensaje al usuario porque la pestaña no puede
+  // cerrarse a sí misma (window.close solo funciona si fue abierta por
+  // script). El profesor tiene que cerrar la pestaña manualmente.
+  const handleShutdown = async () => {
+    const ok = window.confirm('¿Cerrar SimulaPUCV? Se detendrá el proceso y deberá iniciar la aplicación nuevamente para usarla.');
+    if (!ok) return;
+    try {
+      await fetch(apiUrl('/api/shutdown'), { method: 'POST' });
+    } catch {
+      // Esperado: el server se apaga en medio de la respuesta.
+    }
+    setTimeout(() => {
+      alert('SimulaPUCV se ha cerrado. Puede cerrar esta pestaña del navegador.');
+    }, 300);
+  };
+
+  // ==========================================
   // DESCARGA .ZIP DE RESULTADOS
   // ==========================================
   const handleDownloadZip = async () => {
@@ -350,13 +394,15 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         activeTab={activeTab}
         mallaSetupMode={mallaSetupMode}
-        isAdmin={isAdmin}
+        isAdmin={isAdmin && !standalone}
+        standalone={standalone}
         setSidebarOpen={setSidebarOpen}
         setActiveTab={setActiveTab}
         fetchAdminUsuarios={fetchAdminUsuarios}
         handleSidebarNav={handleSidebarNav}
         handleLogout={handleLogout}
         handleNewSimulation={handleNewSimulation}
+        handleShutdown={handleShutdown}
       />
 
       <AppMainContent
@@ -364,6 +410,7 @@ export default function App() {
         wizardStep={wizardStep}
         mallaSetupMode={mallaSetupMode}
         isAdmin={isAdmin}
+        standalone={standalone}
         onOpenSidebar={() => setSidebarOpen(true)}
         setActiveTab={setActiveTab}
         setWizardStep={setWizardStep}

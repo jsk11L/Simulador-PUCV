@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Play, RotateCcw, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
+import { Dices, Loader2, Play, RotateCcw, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import useStudentApi, { type BacktestCohorteResponse, type MallaCustomOverride } from '../hooks/useStudentApi';
 import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
 import type { MallaGuardada, ModifierWeights, StudentProfile } from '../types';
@@ -21,6 +21,9 @@ const safeInt = (s: string, fallback = 0): number => {
   const n = parseInt(s, 10);
   return Number.isFinite(n) ? n : fallback;
 };
+
+const generarSeedAleatoria = (): number =>
+  Math.floor(Math.random() * 999_999_999) + 1;
 
 export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
   const api = useStudentApi({ apiUrl });
@@ -85,7 +88,7 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Calibración de Pesos δ</h2>
             <p className="text-sm text-slate-500">
-              Ajustá los pesos de los modificadores y mide cómo cambian las predicciones
+              Ajuste los pesos de los modificadores y mida cómo cambian las predicciones
               sobre una cohorte sintética. La métrica primaria es Brier score (menor = mejor).
             </p>
           </div>
@@ -183,12 +186,22 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1 block">Seed</label>
-                  <input
-                    type="number"
-                    value={seed}
-                    onChange={(e) => setSeed(safeInt(e.target.value, 0))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-                  />
+                  <div className="flex gap-1">
+                    <input
+                      type="number"
+                      value={seed}
+                      onChange={(e) => setSeed(safeInt(e.target.value, 0))}
+                      className="flex-1 min-w-0 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSeed(generarSeedAleatoria())}
+                      title="Generar seed aleatoria"
+                      className="px-2 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-amber-50 hover:border-amber-400 hover:text-amber-700 transition-all shrink-0"
+                    >
+                      <Dices size={16} />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -212,7 +225,7 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 
               {!resultado ? (
                 <div className="text-center text-slate-400 text-sm py-8">
-                  Configurá los pesos y presioná "Evaluar Pesos" para ver métricas.
+                  Configure los pesos y presione "Evaluar Pesos" para ver métricas.
                 </div>
               ) : (
                 <div className="space-y-4">

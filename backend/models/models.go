@@ -1,6 +1,11 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
 
 // ==========================================
 // PAYLOADS (lo que envía React)
@@ -134,8 +139,14 @@ type SimulacionResponse struct {
 // MODELOS GORM (Base de Datos)
 // ==========================================
 
+// Las columnas que antes eran `type:uuid` con default `gen_random_uuid()`
+// (postgres-only) pasaron a `type:text` con UUID generado en hook
+// `BeforeCreate`. Lo mismo con `type:jsonb` → `type:text`: GORM serializa el
+// string con json.Marshal/Unmarshal, y postgres acepta string en columnas
+// jsonb existentes sin cambios, así que es compatible con BD legacy.
+
 type Usuario struct {
-	ID           string `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	ID           string `gorm:"type:text;primaryKey"`
 	Email        string `gorm:"uniqueIndex;not null"`
 	PasswordHash string `gorm:"not null"`
 	IsApproved   bool   `gorm:"default:false"`
@@ -143,29 +154,50 @@ type Usuario struct {
 	CreatedAt    time.Time
 }
 
+func (u *Usuario) BeforeCreate(tx *gorm.DB) error {
+	if u.ID == "" {
+		u.ID = uuid.NewString()
+	}
+	return nil
+}
+
 type MallaGuardadaDB struct {
-	ID             string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID             string    `gorm:"type:text;primaryKey" json:"id"`
 	UsuarioID      string    `gorm:"not null;index" json:"usuario_id"`
 	Nombre         string    `gorm:"not null" json:"nombre"`
 	TotalSemestres int       `json:"total_semestres"`
-	Asignaturas    string    `gorm:"type:jsonb;not null" json:"-"`
+	Asignaturas    string    `gorm:"type:text;not null" json:"-"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+func (m *MallaGuardadaDB) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+	return nil
+}
+
 type ResultadoSimulacionDB struct {
-	ID                string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID                string    `gorm:"type:text;primaryKey" json:"id"`
 	UsuarioID         string    `gorm:"not null;index" json:"usuario_id"`
 	MallaNombre       string    `json:"malla_nombre"`
 	TotalAsignaturas  int       `json:"total_asignaturas"`
 	TotalSemestres    int       `json:"total_semestres"`
-	MetricasJSON      string    `gorm:"type:jsonb;not null" json:"-"`
-	DistribucionJSON  string    `gorm:"type:jsonb" json:"-"`
-	RamosCriticosJSON string    `gorm:"type:jsonb" json:"-"`
-	HeatmapJSON       string    `gorm:"type:jsonb" json:"-"`
-	TransicionesJSON  string    `gorm:"type:jsonb" json:"-"`
-	SensibilidadJSON  string    `gorm:"type:jsonb" json:"-"`
-	VariablesJSON     string    `gorm:"type:jsonb" json:"-"`
-	ModeloJSON        string    `gorm:"type:jsonb" json:"-"`
+	MetricasJSON      string    `gorm:"type:text;not null" json:"-"`
+	DistribucionJSON  string    `gorm:"type:text" json:"-"`
+	RamosCriticosJSON string    `gorm:"type:text" json:"-"`
+	HeatmapJSON       string    `gorm:"type:text" json:"-"`
+	TransicionesJSON  string    `gorm:"type:text" json:"-"`
+	SensibilidadJSON  string    `gorm:"type:text" json:"-"`
+	VariablesJSON     string    `gorm:"type:text" json:"-"`
+	ModeloJSON        string    `gorm:"type:text" json:"-"`
 	CreatedAt         time.Time `json:"created_at"`
+}
+
+func (r *ResultadoSimulacionDB) BeforeCreate(tx *gorm.DB) error {
+	if r.ID == "" {
+		r.ID = uuid.NewString()
+	}
+	return nil
 }

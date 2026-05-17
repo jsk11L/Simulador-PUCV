@@ -157,10 +157,29 @@ export default function useStudentApi({ apiUrl }: UseStudentApiParams) {
     return res.json();
   };
 
+  /**
+   * Obtiene la malla y programación de un escenario fijo del paper.
+   * Usado por el flujo manual para construir el kanban interactivo.
+   */
+  const fetchScenario = async (id: string): Promise<{
+    id: string;
+    asignaturas: import('../types').Asignatura[];
+    programacion?: { impar: string[]; par: string[] };
+    ncsmax: number;
+  }> => {
+    const res = await fetch(apiUrl(`/api/scenarios/${id}`), { headers: authHeaders() });
+    if (!res.ok) {
+      const err: ApiError = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    return res.json();
+  };
+
   return {
     fetchPerfiles,
     generarAlumno,
     simularIndividual,
     backtestCohorte,
+    fetchScenario,
   };
 }

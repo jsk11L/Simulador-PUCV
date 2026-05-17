@@ -197,7 +197,8 @@ footer {
   <h1>SimulaPUCV — Resumen de avances</h1>
   <p class="subtitle">
     Documento técnico para el cliente. Detalla los cambios al motor de simulación,
-    la nueva funcionalidad de predicción individual de alumnos (backtesting),
+    la funcionalidad de predicción individual de alumnos (backtesting),
+    la construcción de cohortes manuales, la carga de historiales por CSV/JSON,
     los resultados de validación contra el paper original (Mendoza Baeza, 2023)
     y las preguntas abiertas para la siguiente iteración.
   </p>
@@ -262,8 +263,8 @@ footer {
   </div>
   <div class="kpi">
     <div class="kpi-label">Vistas nuevas</div>
-    <div class="kpi-value">3</div>
-    <div class="kpi-sub">Simular Alumno, Cohorte, Calibración</div>
+    <div class="kpi-value">4</div>
+    <div class="kpi-sub">Simular Alumno, Cohorte, Calibración, Soporte</div>
   </div>
 </div>
 
@@ -576,6 +577,84 @@ Valores típicos:
   que evita pantallas en blanco si una respuesta tiene campos faltantes.
 </p>
 
+<h3><span class="tag new">Nuevo</span> 7.6 Construcción manual de cohortes alumno por alumno</h3>
+<p>
+  Dentro de <strong>Generar Cohorte</strong> hay un sub-modo "Manual" que
+  permite armar una cohorte real construyendo cada alumno con el kanban
+  interactivo (o cargando su CSV/JSON). Cada alumno aceptado se acumula
+  en una lista, y al apretar "Usar esta cohorte" se procesa con el mismo
+  pipeline que el modo sintético.
+</p>
+<p>
+  En el modal de "Ver" de cada alumno de la cohorte ahora hay un botón
+  <strong>"Proyectar Futuro"</strong> que llama al motor δ y dibuja el
+  futuro probable del alumno en el mismo kanban, con distinción visual
+  (fondo violeta, borde punteado y badge "Proyectado") entre historial
+  conocido y proyección.
+</p>
+
+<h3><span class="tag new">Nuevo</span> 7.7 Carga de historiales por CSV/JSON</h3>
+<p>
+  La construcción manual de un alumno (en <em>Simular Alumno → Manual</em>
+  y en <em>Generar Cohorte → Manual</em>) ahora acepta un botón
+  <strong>"Cargar archivo"</strong> que parsea CSV o JSON y rellena el
+  kanban automáticamente.
+</p>
+<p>El CSV usa un formato compacto y tolerante:</p>
+<div class="formula-block">periodo,sigla,creditos,nota,estado
+S1-2022,MAT-101,6,5.5,aprobado
+S1-2022,FIS-101,5,3.5,reprobado
+S2-2022,MAT-101,6,4.2,aprobado
+S1-2023,MAT-201,6,0,en_curso</div>
+<ul>
+  <li>Separador <code>,</code> o <code>;</code> auto-detectado.</li>
+  <li>Decimal con <code>.</code> o <code>,</code> auto-detectado.</li>
+  <li>BOM UTF-8 se descarta automáticamente.</li>
+  <li>Si una sigla no está en la malla seleccionada, se omite con warning.</li>
+  <li>Coherencias: aprobado &lt; 4.0 → 4.0; reprobado ≥ 4.0 → 3.9; en_curso → nota = 0.</li>
+</ul>
+<p>
+  El JSON nativo (<code>ID_historial.json</code> que descarga la app
+  dentro del ZIP) también se acepta como entrada — permite el ciclo
+  <em>descargar → editar fuera de la app → recargar</em>.
+</p>
+
+<h3><span class="tag new">Nuevo</span> 7.8 Anonimización con IDs A001, A002, …</h3>
+<p>
+  Para evitar exponer datos sensibles, la UI muestra solo IDs anónimos
+  tipo <code>A001</code>, <code>A002</code>, etc., nunca RUTs ni nombres.
+  La asignación es por índice dentro de la cohorte o por hash FNV-1a si
+  el alumno viene de un import con RUT.
+</p>
+
+<h3><span class="tag new">Nuevo</span> 7.9 Botón de dado para seeds aleatorias</h3>
+<p>
+  Junto al input de <strong>seed</strong> en cada vista hay un botón de
+  dado que genera una seed aleatoria de hasta 9 dígitos. Sirve para
+  explorar trayectorias alternativas sin tipear números a mano.
+</p>
+
+<h3><span class="tag new">Nuevo</span> 7.10 Página de Soporte</h3>
+<p>
+  Nueva entrada en el sidebar (<em>Biblioteca → Soporte</em>) con datos
+  de contacto del responsable del proyecto, plantillas sugeridas para
+  reportes de bugs / pedidos de features / consultas de uso, y los
+  tiempos de respuesta esperados.
+</p>
+
+<h3><span class="tag refactor">Reescrito</span> 7.11 Página de Ayuda</h3>
+<p>
+  La pestaña <em>Ayuda</em> se reescribió completa para documentar el
+  estado actual del producto: descripción funcional de cada una de las
+  6 vistas (Nueva Simulación, Último Resultado, Simular Alumno, Generar
+  Cohorte, Calibración, Mallas Guardadas), todos los parámetros del
+  motor (NE, NCSmax, TAmin, NapTAmin, Opor, MaxSemestres, VMap, Δ), las
+  fórmulas del motor δ con los rangos efectivos, el detalle de los
+  perfiles sintéticos, el formato CSV de malla, el formato CSV/JSON de
+  historial, y el inventario completo de archivos del ZIP descargado
+  según vista.
+</p>
+
 <!-- ================================ -->
 <h2 id="tests">8. Tests automatizados</h2>
 
@@ -617,9 +696,10 @@ Valores típicos:
 <h4>Alta prioridad</h4>
 <ul>
   <li>
-    <strong>Conectar con datos reales de PUCV</strong>: el parser CSV ya
-    procesa el formato exacto que entrega DARH. Falta la integración con
-    la API o el flujo de carga de archivos en la UI.
+    <strong>Conectar con la API de la PUCV</strong> para cargar historiales
+    reales automáticamente. La carga manual por CSV/JSON ya está
+    implementada (sprint actual), pero la integración por consulta de RUT
+    depende de convenios institucionales fuera del scope técnico.
   </li>
   <li>
     <strong>Recalibrar pesos con datos reales</strong>: los pesos actuales
@@ -635,7 +715,17 @@ Valores típicos:
 <h4>Media prioridad</h4>
 <ul>
   <li>
-    <strong>Upload de CSV del alumno</strong> directamente desde el frontend.
+    <strong class="metric-ok">✓ Upload de CSV/JSON del alumno</strong>
+    desde el frontend — <em>completado</em>. Tanto en Simular Alumno como
+    en Generar Cohorte manual.
+  </li>
+  <li>
+    <strong class="metric-ok">✓ Construcción manual de cohortes</strong>
+    alumno por alumno — <em>completado</em>.
+  </li>
+  <li>
+    <strong class="metric-ok">✓ Proyección por alumno dentro de la cohorte</strong>
+    (lazy, en click "Ver") — <em>completado</em>.
   </li>
   <li>
     <strong>Toggle de modo TAmin</strong> en la UI (estricto vs proyectivo).
@@ -668,9 +758,11 @@ Valores típicos:
 <div class="question-block">
   <div class="q">1. ¿Cuál es el estado de la API de PUCV que entregará los historiales reales?</div>
   <div class="why">
-    De esto depende si construimos el flujo "upload de CSV manual" o
-    "consulta directa por RUT". Ambos están listos a nivel parser, pero
-    la UI necesita una decisión.
+    El flujo de <em>upload manual por CSV/JSON</em> ya está implementado y
+    funciona en la UI. Falta la integración por consulta directa a la API
+    institucional (consulta por RUT) — esta parte depende de convenios
+    fuera del scope técnico. Mientras tanto se puede operar con CSVs
+    exportados desde DARH.
   </div>
 </div>
 

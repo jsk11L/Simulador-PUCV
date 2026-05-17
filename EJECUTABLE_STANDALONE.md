@@ -1,15 +1,14 @@
 # Empaquetado como ejecutable standalone
 
-Plan para distribuir SimulaPUCV como un único binario (`simula.exe` en
-Windows, `simula` en Linux/macOS) que tu profesor pueda ejecutar haciendo
-doble click sin instalar nada más. Al ejecutarlo, abre automáticamente
-el navegador apuntando a la app local con base de datos personal por
-usuario.
+Distribuye SimulaPUCV como un único binario (`simula.exe` en Windows,
+`simula` en Linux/macOS) que tu profesor puede ejecutar haciendo doble
+click sin instalar nada más. Al ejecutarlo, abre automáticamente el
+navegador apuntando a la app local con base de datos personal por usuario.
 
-> **Aviso**: el código actual NO está modificado para esto. Este documento
-> es un plan paso a paso para que vos puedas ejecutarlo cuando quieras,
-> sabiendo que mientras tanto el sistema sigue funcionando normal contra
-> PostgreSQL para desarrollo.
+> **Estado**: implementado (Opción A — doble modo). El backend ahora
+> soporta `DB_TYPE=sqlite` (default, modo standalone) y `DB_TYPE=postgres`
+> (modo servidor). Para producir el ejecutable, ejecutar
+> `build-standalone.bat` (Windows) o `build-standalone.sh` (Linux/macOS).
 
 ## Resumen de cambios necesarios
 
@@ -348,22 +347,17 @@ El ejecutable resultante (`simula.exe`) tendrá ~15-20 MB. Distribución:
 
 ## Checklist de implementación
 
-Cuando vayas a hacer el ejecutable, copiá esta lista y andá tachando:
-
-- [ ] Migrar `gorm.io/driver/postgres` → `gorm.io/driver/sqlite`
-- [ ] Reemplazar `gen_random_uuid()` con hook `BeforeCreate` + `uuid.NewString()`
-- [ ] Cambiar columnas `type:jsonb` → `type:text`
-- [ ] Crear helper `resolverDBPath()` en `main.go`
-- [ ] Eliminar variables DB del `.env.example`
-- [ ] Generar `JWT_SECRET` aleatorio en primer arranque si no existe
-- [ ] Crear `backend/embed.go` con `//go:embed all:frontend_dist`
-- [ ] Crear `build-standalone.sh` y `.bat`
-- [ ] Agregar `openBrowser` y `go openBrowser` en `main.go`
-- [ ] Lógica de auto-admin para primer usuario
-- [ ] Probar arranque desde directorio limpio
-- [ ] Probar registro + login + simulación completa
-- [ ] Probar persistencia de mallas
-- [ ] Empaquetar `simula.exe` + `LEEME.txt` en un zip
+- [x] Migrar `gorm.io/driver/postgres` → driver dual (postgres + sqlite via `DB_TYPE`)
+- [x] Reemplazar `gen_random_uuid()` con hook `BeforeCreate` + `uuid.NewString()`
+- [x] Cambiar columnas `type:jsonb` → `type:text` (compatible con BD legacy)
+- [x] Crear helper `resolverDBPath()` en `main.go`
+- [x] Generar `JWT_SECRET` aleatorio y persistirlo en primer arranque si no existe
+- [x] Crear `backend/embed.go` con `//go:embed all:frontend_dist`
+- [x] Crear `build-standalone.sh` y `.bat`
+- [x] Agregar `openBrowser` y `go openBrowser` en `main.go`
+- [x] Lógica de auto-admin para primer usuario (via `API.Standalone`)
+- [x] Tests E2E de paridad motor (sqlite vs golden values) — ver `backend/standalone_e2e_test.go`
+- [ ] Empaquetar `simula.exe` + `LEEME.txt` en un zip (manual, opcional)
 
 ---
 

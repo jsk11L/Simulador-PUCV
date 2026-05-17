@@ -123,6 +123,7 @@ export type ActiveTab =
   | 'resultados_pasados'
   | 'mallas'
   | 'ayuda'
+  | 'soporte'
   | 'admin'
   | 'simular_individual'
   | 'generar_cohorte'
@@ -200,5 +201,11 @@ export interface IndividualPrediction {
   semestres_hasta_cierre: number;
   semestres_proyectados: number;
   probabilidades_por_ramo: RamoProbabilidad[];
+  /**
+   * Una iteración Montecarlo representativa de la trayectoria futura.
+   * Solo incluye los semestres PROYECTADOS (no los del historial).
+   * Sirve para visualizarse como kanban después del historial.
+   */
+  trayectoria_proyectada: SemesterRecord[];
   iteraciones: number;
 }

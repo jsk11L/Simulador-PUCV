@@ -53,7 +53,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             </h3>
             <p className="text-sm text-red-800 mb-3">
               La vista se rompió mientras renderizaba. Esto evita que la app entera quede en blanco.
-              Probá recargar esta sección o moverte a otra del sidebar.
+              Pruebe recargar esta sección o moverse a otra desde el menú lateral.
             </p>
             {this.state.error && (
               <details className="text-xs bg-white border border-red-200 rounded p-2 mb-3 font-mono">

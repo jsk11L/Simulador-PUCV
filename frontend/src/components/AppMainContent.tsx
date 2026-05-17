@@ -10,6 +10,7 @@ import UltimoResultadoView from './UltimoResultadoView';
 import LogView from './LogView';
 import AdminView from './AdminView';
 import HelpView from './HelpView';
+import SoporteView from './SoporteView';
 import SimularIndividualView from './SimularIndividualView';
 import GenerarCohorteView from './GenerarCohorteView';
 import CalibracionView from './CalibracionView';
@@ -23,6 +24,7 @@ interface AppMainContentProps {
   wizardStep: WizardStep;
   mallaSetupMode: string | null;
   isAdmin: boolean;
+  standalone?: boolean;
   onOpenSidebar: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   setWizardStep: Dispatch<SetStateAction<WizardStep>>;
@@ -82,6 +84,7 @@ export default function AppMainContent({
   wizardStep,
   mallaSetupMode,
   isAdmin,
+  standalone = false,
   onOpenSidebar,
   setActiveTab,
   setWizardStep,
@@ -269,13 +272,13 @@ export default function AppMainContent({
 
       {activeTab === 'simular_individual' && (
         <ErrorBoundary label="SimularIndividual">
-          <SimularIndividualView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} />
+          <SimularIndividualView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} standalone={standalone} />
         </ErrorBoundary>
       )}
 
       {activeTab === 'generar_cohorte' && (
         <ErrorBoundary label="GenerarCohorte">
-          <GenerarCohorteView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} />
+          <GenerarCohorteView apiUrl={apiUrl} mallasGuardadas={mallasGuardadas} standalone={standalone} />
         </ErrorBoundary>
       )}
 
@@ -286,6 +289,8 @@ export default function AppMainContent({
       )}
 
       {activeTab === 'ayuda' && <HelpView />}
+
+      {activeTab === 'soporte' && <SoporteView />}
     </main>
   );
 }

@@ -66,3 +66,14 @@ func NewAuthMiddleware(secret []byte) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// NewStandaloneAuthMiddleware retorna un middleware que NO valida token y
+// siempre setea el usuario_id pasado por parámetro. Pensado para el modo
+// ejecutable single-user: no hay registro, no hay login, no hay sesiones,
+// todas las requests operan como el mismo usuario local pre-creado.
+func NewStandaloneAuthMiddleware(localUserID string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("usuario_id", localUserID)
+		c.Next()
+	}
+}
