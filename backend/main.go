@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,12 @@ import (
 
 	_ "modernc.org/sqlite" // driver puro-Go, sin CGO
 )
+
+// idleTimeout: tiempo sin recibir ninguna request HTTP tras el cual el
+// binario portable se autoapaga. El frontend hace heartbeat a /api/info
+// cada 30s mientras la pestaña esté abierta, así que si pasan más de 3
+// minutos sin ping podemos asumir que el usuario cerró la pestaña.
+const idleTimeout = 3 * time.Minute
 
 // dbType lee DB_TYPE del entorno y devuelve "sqlite" por default. Esto hace
 // que el binario standalone "simplemente funcione" haciendo doble click: si
@@ -228,6 +235,16 @@ func main() {
 	}
 	r.Use(gin.Recovery())
 	r.Use(corsMiddleware())
+
+	// Solo en portable: tracker de actividad + autoshutdown si la pestaña
+	// del navegador queda cerrada por más de idleTimeout (3 min).
+	if standalone {
+		tracker := &activityTracker{}
+		tracker.touch()
+		r.Use(tracker.middleware())
+		startAutoShutdown(tracker)
+	}
+
 	api.Mount(r)
 	mountFrontend(r)
 
@@ -264,4 +281,46 @@ func corsMiddleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// activityTracker registra el timestamp de la última request HTTP. Lo
+// usa la goroutine de autoshutdown para detectar pestañas cerradas y
+// cerrar el proceso del binario portable.
+type activityTracker struct {
+	lastNano atomic.Int64
+}
+
+func (t *activityTracker) touch() {
+	t.lastNano.Store(time.Now().UnixNano())
+}
+
+func (t *activityTracker) since() time.Duration {
+	last := t.lastNano.Load()
+	if last == 0 {
+		return 0
+	}
+	return time.Since(time.Unix(0, last))
+}
+
+func (t *activityTracker) middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		t.touch()
+		c.Next()
+	}
+}
+
+// startAutoShutdown lanza una goroutine que cada 30s verifica si el
+// servidor está inactivo. Si pasaron más de idleTimeout sin requests,
+// llama os.Exit(0). Solo se activa en modo portable.
+func startAutoShutdown(t *activityTracker) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if t.since() > idleTimeout {
+				log.Printf("Sin actividad por %v — apagando SimulaPUCV portable.", idleTimeout)
+				os.Exit(0)
+			}
+		}
+	}()
 }

@@ -88,11 +88,14 @@ func ProfileByName(nombre string) (StudentProfile, bool) {
 // Esfuerzo > 0.5 → bonus positivo (alumno tiende a aprobar más)
 // Esfuerzo < 0.5 → penalización (alumno tiende a reprobar más)
 //
-// El factor K se mantiene moderado (0.15) para que el "perfil" sea una
-// señal detectable pero no domine las probabilidades base de cada ramo.
-// Si fuera muy grande, la malla perdería relevancia.
+// K=0.25 da rango efectivo [-0.125, +0.125]. Con esfuerzo 0.95 el bonus
+// es +0.1125 — un alumno esforzado se beneficia de manera notable pero
+// SIN saturar las probabilidades a 100%. Los esforzados todavía pueden
+// reprobar ramos puntuales (deseable: nadie aprueba "siempre", ni los
+// mejores). Para en_problemas (esfuerzo 0.25) la penalización es -0.0625
+// y para promedio el efecto es prácticamente nulo.
 func (p StudentProfile) deltaPesfuerzo() float64 {
-	const K = 0.15
+	const K = 0.25
 	return K * (p.Esfuerzo - 0.5)
 }
 

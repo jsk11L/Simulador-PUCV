@@ -26,10 +26,10 @@ echo
 echo "[3/4] Compilando binario standalone..."
 cd backend
 go mod tidy
-OUT_NAME="simula"
+OUT_NAME="SimulaPUCV"
 LDFLAGS="-s -w"
 if [ "${GOOS:-}" = "windows" ]; then
-  OUT_NAME="simula.exe"
+  OUT_NAME="SimulaPUCV.exe"
   # Sin consola en Windows; los logs van al archivo de log de la app.
   LDFLAGS="-s -w -H=windowsgui"
 fi

@@ -59,8 +59,10 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
   const [alumno, setAlumno] = useState<StudentHistory | null>(null);
   const [prediccion, setPrediccion] = useState<IndividualPrediction | null>(null);
 
-  // Para proyectar, ambos flujos necesitan saber sobre qué malla.
-  const [escenario, setEscenario] = useState<string>('caso_actual');
+  // Para proyectar, ambos flujos necesitan saber sobre qué malla. En
+  // portable arrancamos sin escenario para no cargar uno del paper que
+  // el selector ya no expone.
+  const [escenario, setEscenario] = useState<string>(() => (standalone ? '' : 'caso_actual'));
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
   const [seed, setSeed] = useState<number>(42);
 
@@ -68,6 +70,11 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
   const [perfiles, setPerfiles] = useState<StudentProfile[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>('promedio');
   const [untilSemestre, setUntilSemestre] = useState<number>(0);
+
+  // Modo preciso: 5000 iteraciones en vez de 500. KPIs más estables a costa
+  // de tiempo. Útil cuando interesan las colas de la distribución o la
+  // probabilidad de cada ramo individual.
+  const [modoPreciso, setModoPreciso] = useState<boolean>(false);
 
   const [loadingGen, setLoadingGen] = useState(false);
   const [loadingProj, setLoadingProj] = useState(false);
@@ -136,7 +143,7 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
         history: alumno,
         scenario: mallaOverride ? undefined : escenario,
         ...(mallaOverride ?? {}),
-        iteraciones: 500,
+        iteraciones: modoPreciso ? 5000 : 500,
         seed: seed + 1,
       });
       setPrediccion({
@@ -170,6 +177,23 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
 
   const perfilActual = perfiles.find((p) => p.nombre === perfilSeleccionado);
   const displayId = alumno ? rutToStudentId(alumno.rut) : '';
+
+  // Portable sin mallas guardadas: no hay nada para simular. Mostrar guía
+  // amigable en lugar del form que dispararía un error al intentar cargar
+  // un escenario inexistente.
+  if (standalone && mallasGuardadas.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-4 sm:p-8">
+        <div className="max-w-3xl mx-auto">
+          <Header />
+          <EmptyMallaState
+            titulo="Aún no tiene mallas guardadas"
+            mensaje="Para simular alumnos en la versión portable necesita al menos una malla guardada. Vaya a Nueva Simulación, configure su malla y guárdela. Después podrá volver aquí para simular alumnos sobre ella."
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-4 sm:p-8">
@@ -247,6 +271,15 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
                     <Download size={14} /> Descargar ZIP
                   </button>
                 )}
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 select-none cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={modoPreciso}
+                    onChange={(e) => setModoPreciso(e.target.checked)}
+                    className="rounded border-slate-300"
+                  />
+                  Modo preciso <span className="text-slate-400">(5000 iteraciones, más lento)</span>
+                </label>
                 <button
                   onClick={handleProyectar}
                   disabled={loadingProj}
@@ -263,6 +296,12 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
               proyectadoDesdeIdx={
                 prediccion ? (alumno.semestres ?? []).length : undefined
               }
+              probabilidadesPorRamo={prediccion?.probabilidades_por_ramo}
+              prediccionTasas={prediccion ? {
+                titulacion: prediccion.tasa_titulacion,
+                eliminadoTamin: prediccion.tasa_eliminado_tamin,
+                eliminadoOpor: prediccion.tasa_eliminado_opor,
+              } : undefined}
             />
           </section>
         )}
@@ -565,4 +604,17 @@ function combinarHistorialYProyeccion(
       ...prediccion.trayectoria_proyectada,
     ],
   };
+}
+
+// Empty-state amigable para modo portable cuando aún no hay mallas
+// guardadas. Reemplaza el form principal — sin él, los selectores
+// fallarían al intentar cargar el escenario por defecto.
+function EmptyMallaState({ titulo, mensaje }: { titulo: string; mensaje: string }) {
+  return (
+    <section className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center mt-6">
+      <Sparkles size={48} className="mx-auto text-slate-300 mb-4" />
+      <h3 className="font-bold text-slate-800 text-lg mb-2">{titulo}</h3>
+      <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">{mensaje}</p>
+    </section>
+  );
 }

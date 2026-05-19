@@ -122,6 +122,7 @@ export type ActiveTab =
   | 'ultimo_resultado'
   | 'resultados_pasados'
   | 'mallas'
+  | 'crear_malla'
   | 'ayuda'
   | 'soporte'
   | 'admin'

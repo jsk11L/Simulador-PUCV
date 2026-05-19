@@ -285,6 +285,36 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 			}
 		}
 
+		// Si la carga obligatoria + electivos atrasados del semestre quedó
+		// muy baja, adelantamos electivos planificados a futuros semestres
+		// para evitar semestres con 1-2 ramos. El umbral es 60% de la
+		// carga preferida.
+		creditosElectivosAtrasados := 0
+		for _, s := range electivos {
+			if !s.Tomado && s.Semestre <= semestreActual {
+				creditosElectivosAtrasados += s.Creditos
+			}
+		}
+		umbralMinimo := (cargaTarget * 6) / 10
+		cargaPrevista := creditosInscritos + creditosElectivosAtrasados
+		if cargaPrevista < umbralMinimo {
+			for i := range electivos {
+				s := &electivos[i]
+				if s.Tomado || s.Semestre <= semestreActual {
+					continue
+				}
+				if cargaPrevista+s.Creditos > cargaTarget {
+					continue
+				}
+				// Adelantar este electivo al semestre actual.
+				s.Semestre = semestreActual
+				cargaPrevista += s.Creditos
+				if cargaPrevista >= umbralMinimo {
+					break
+				}
+			}
+		}
+
 		// Si no se pudo inscribir nada → titulación o eliminación
 		if len(pendientesEval) == 0 && countElectivosPendientes(electivos, semestreActual) == 0 {
 			todasAprobadas := true
@@ -299,7 +329,12 @@ func (cfg GeneratorConfig) Generar() (models.StudentHistory, error) {
 			} else {
 				estado = models.EliminadoTAmin
 			}
-			hist.Semestres = append(hist.Semestres, newRecord)
+			// Solo agregar el semestre si efectivamente tiene cursos.
+			// Si está vacío, el alumno se "tituló/eliminó" en el cierre
+			// del semestre anterior — no inventamos un semestre fantasma.
+			if len(newRecord.Cursos) > 0 {
+				hist.Semestres = append(hist.Semestres, newRecord)
+			}
 			break
 		}
 
@@ -383,25 +418,39 @@ type electivoSlot struct {
 	Categoria models.CategoriaSubject
 	Semestre  int
 	RepBase   float64 // tasa de reprobación sintética del electivo (más fácil que ramo obligatorio)
+	// Tomado: marca que el electivo ya se procesó (aparece en un SemesterRecord).
+	// Evita que se vuelva a procesar y permite que appendElectivosDelSemestre
+	// recoja electivos atrasados (Semestre <= semestreActual) sin duplicar.
+	Tomado bool
 }
 
 func planificarElectivos(rng *rand.Rand, maxSem int) []electivoSlot {
+	// Tope para semestres planificados de electivos. Aunque el alumno
+	// pueda extenderse más allá de sem 10, NO queremos planificar
+	// electivos en semestres tardíos: el alumno se titula al aprobar
+	// los obligatorios y los electivos que quedaron en slots futuros
+	// generarían "semestres post-titulación" con solo electivos.
+	const semTopElectivos = 10
 	if maxSem < 12 {
 		maxSem = 12
 	}
+	planTope := maxSem
+	if planTope > semTopElectivos {
+		planTope = semTopElectivos
+	}
 	slots := make([]electivoSlot, 0, 7)
 
-	// ICR010 Antropología — entre sem 1 y maxSem
-	semIcr1 := 1 + rng.Intn(min(maxSem, 6))
+	// ICR010 Antropología — entre sem 1 y planTope (idealmente temprano)
+	semIcr1 := 1 + rng.Intn(min(planTope, 6))
 	slots = append(slots, electivoSlot{
 		Sigla: "ICR010", Creditos: 2, Categoria: models.CategoriaFOFU,
 		Semestre: semIcr1, RepBase: 0.15,
 	})
 
-	// ICR020 Ética — después de Antropología
-	semIcr2 := semIcr1 + 1 + rng.Intn(max(1, min(maxSem-semIcr1, 6)))
-	if semIcr2 > maxSem {
-		semIcr2 = maxSem
+	// ICR020 Ética — después de Antropología pero antes del planTope
+	semIcr2 := semIcr1 + 1 + rng.Intn(max(1, min(planTope-semIcr1, 6)))
+	if semIcr2 > planTope {
+		semIcr2 = planTope
 	}
 	slots = append(slots, electivoSlot{
 		Sigla: "ICR020", Creditos: 2, Categoria: models.CategoriaFOFU,
@@ -409,8 +458,8 @@ func planificarElectivos(rng *rand.Rand, maxSem int) []electivoSlot {
 	})
 
 	// 1 FOFU genérico desde sem 3
-	if maxSem >= 3 {
-		semFofu := 3 + rng.Intn(maxSem-2)
+	if planTope >= 3 {
+		semFofu := 3 + rng.Intn(planTope-2)
 		slots = append(slots, electivoSlot{
 			Sigla: "FOFU_GEN_01", Creditos: 2, Categoria: models.CategoriaFOFU,
 			Semestre: semFofu, RepBase: 0.20,
@@ -418,9 +467,9 @@ func planificarElectivos(rng *rand.Rand, maxSem int) []electivoSlot {
 	}
 
 	// 4 optativos desde sem 5
-	if maxSem >= 5 {
+	if planTope >= 5 {
 		for i := 1; i <= 4; i++ {
-			semOpt := 5 + rng.Intn(maxSem-4)
+			semOpt := 5 + rng.Intn(planTope-4)
 			slots = append(slots, electivoSlot{
 				Sigla:     fmt.Sprintf("OPT_GEN_%02d", i),
 				Creditos:  4,
@@ -437,6 +486,11 @@ func planificarElectivos(rng *rand.Rand, maxSem int) []electivoSlot {
 	return slots
 }
 
+// appendElectivosDelSemestre toma todos los electivos pendientes cuyo
+// semestre planificado ya llegó (s.Semestre <= semestre) y aún no fueron
+// procesados, y los inscribe en el SemesterRecord actual. Esto evita
+// "semestres con un solo electivo": si quedó alguno atrasado se mete con
+// los obligatorios del semestre actual.
 func appendElectivosDelSemestre(
 	semRec *models.SemesterRecord,
 	slots []electivoSlot,
@@ -447,8 +501,9 @@ func appendElectivosDelSemestre(
 	historialRamos map[string]*models.HistorialAsignatura,
 	intentosLocal map[string]int,
 ) {
-	for _, s := range slots {
-		if s.Semestre != semestre {
+	for i := range slots {
+		s := &slots[i]
+		if s.Tomado || s.Semestre > semestre {
 			continue
 		}
 		// Asignatura sintética con la RepBase definida
@@ -472,6 +527,7 @@ func appendElectivosDelSemestre(
 		if aprobado {
 			*creditosAprobados += s.Creditos
 		}
+		s.Tomado = true
 
 		semRec.Cursos = append(semRec.Cursos, models.SubjectRecord{
 			Sigla:     s.Sigla,
@@ -483,10 +539,14 @@ func appendElectivosDelSemestre(
 	}
 }
 
-func countElectivosPendientes(slots []electivoSlot, semActual int) int {
+// countElectivosPendientes cuenta cuántos electivos quedan sin tomar
+// (no procesados todavía). Se usa para decidir si el alumno puede
+// titularse: si quedan pendientes, NO se titula aunque tenga todos los
+// obligatorios aprobados.
+func countElectivosPendientes(slots []electivoSlot, _ int) int {
 	n := 0
 	for _, s := range slots {
-		if s.Semestre > semActual {
+		if !s.Tomado {
 			n++
 		}
 	}

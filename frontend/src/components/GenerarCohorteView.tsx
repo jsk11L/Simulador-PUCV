@@ -58,7 +58,9 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
 
   const [perfiles, setPerfiles] = useState<StudentProfile[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>('promedio');
-  const [escenario, setEscenario] = useState<string>('caso_actual');
+  // En portable arrancamos sin escenario para evitar pedir uno del paper
+  // que el select ya no expone.
+  const [escenario, setEscenario] = useState<string>(() => (standalone ? '' : 'caso_actual'));
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
   const [count, setCount] = useState<number>(50);
   const [seedBase, setSeedBase] = useState<number>(42);
@@ -66,6 +68,17 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
   const [resultado, setResultado] = useState<CohorteResponse | null>(null);
   const [detalleAlumno, setDetalleAlumno] = useState<StudentHistory | null>(null);
   const [detalleAlumnoId, setDetalleAlumnoId] = useState<string>('');
+
+  // Modo preciso global: 5000 iteraciones por alumno cuando se proyecta
+  // la cohorte. Default 500 (rápido). Aplica a TODA la cohorte, no por
+  // alumno individual.
+  const [modoPreciso, setModoPreciso] = useState<boolean>(false);
+  // Predicciones por displayId. Se llenan después de generar la cohorte,
+  // proyectando alumno por alumno. El modal "Ver" las muestra sin
+  // re-proyectar; la tabla agrega % titulado/eliminado por alumno.
+  const [prediccionesPorAlumno, setPrediccionesPorAlumno] = useState<Record<string, IndividualPrediction>>({});
+  const [loadingProj, setLoadingProj] = useState(false);
+  const [progresoProj, setProgresoProj] = useState<{ hecho: number; total: number } | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -96,10 +109,53 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
     setMallaOverride(s.override ?? null);
   };
 
+  // Proyecta cada alumno individualmente con `iteraciones` y guarda la
+  // predicción en `prediccionesPorAlumno` indexada por displayId.
+  // Concurrencia limitada a 4 simultáneos para no saturar el motor.
+  const proyectarCohorte = async (alumnos: StudentHistory[], iteraciones: number) => {
+    setLoadingProj(true);
+    setProgresoProj({ hecho: 0, total: alumnos.length });
+    const acumulado: Record<string, IndividualPrediction> = {};
+    const concurrencia = 4;
+    let cursor = 0;
+    let hechos = 0;
+    const worker = async () => {
+      while (true) {
+        const i = cursor++;
+        if (i >= alumnos.length) return;
+        const a = alumnos[i];
+        const id = indexToStudentId(i);
+        try {
+          const pred = await api.simularIndividual({
+            history: a,
+            scenario: mallaOverride ? undefined : escenario,
+            ...(mallaOverride ?? {}),
+            iteraciones,
+            seed: seedBase + i + 1,
+          });
+          acumulado[id] = {
+            ...pred,
+            probabilidades_por_ramo: pred.probabilidades_por_ramo ?? [],
+          };
+        } catch {
+          // Si un alumno falla, seguimos con los demás — el modal mostrará
+          // "sin proyección" para ese.
+        }
+        hechos++;
+        setProgresoProj({ hecho: hechos, total: alumnos.length });
+      }
+    };
+    await Promise.all(Array.from({ length: concurrencia }, () => worker()));
+    setPrediccionesPorAlumno(acumulado);
+    setLoadingProj(false);
+    setProgresoProj(null);
+  };
+
   const handleGenerar = async () => {
     setError('');
     setResultado(null);
     setDetalleAlumno(null);
+    setPrediccionesPorAlumno({});
     setLoading(true);
     try {
       const response = await api.generarAlumno({
@@ -110,16 +166,20 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
         count,
       });
       const r = response as CohorteResponse;
+      const alumnos = r.alumnos ?? [];
       setResultado({
         count: r.count ?? count,
         profile: r.profile,
         scenario: r.scenario ?? escenario,
         seed_base: r.seed_base ?? seedBase,
-        alumnos: r.alumnos ?? [],
+        alumnos,
       });
+      setLoading(false);
+      // Después de tener la cohorte, proyectamos cada alumno con la
+      // configuración global (modoPreciso) para llenar la tabla con %.
+      await proyectarCohorte(alumnos, modoPreciso ? 5000 : 500);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setLoading(false);
     }
   };
@@ -163,6 +223,32 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
     setError('');
   };
 
+  // Portable sin mallas guardadas: el generador no tiene escenario para
+  // operar. Empty state amigable en lugar del form.
+  if (standalone && mallasGuardadas.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-4 sm:p-8">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200">
+            <Users size={28} className="text-purple-600" />
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800">Generar Cohorte de Alumnos</h2>
+            </div>
+          </div>
+          <section className="bg-white rounded-xl border-2 border-dashed border-slate-300 p-12 text-center">
+            <Sparkles size={48} className="mx-auto text-slate-300 mb-4" />
+            <h3 className="font-bold text-slate-800 text-lg mb-2">Aún no tiene mallas guardadas</h3>
+            <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+              Para generar cohortes en la versión portable necesita al menos una malla guardada.
+              Vaya a Nueva Simulación, configure su malla y guárdela. Después podrá volver aquí
+              para generar cohortes sobre ella.
+            </p>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl border border-slate-200 shadow-sm p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
@@ -185,6 +271,20 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
         )}
 
         <ModoToggle modo={modo} onChange={handleSwitchModo} />
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 mb-4 shadow-sm flex items-center gap-2">
+          <input
+            id="cohorte-modo-preciso"
+            type="checkbox"
+            checked={modoPreciso}
+            onChange={(e) => setModoPreciso(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          <label htmlFor="cohorte-modo-preciso" className="text-sm text-slate-700 cursor-pointer">
+            <span className="font-semibold">Modo preciso</span>
+            <span className="text-slate-500"> — 5000 iteraciones por alumno en lugar de 500 (más lento, % por estado más estable).</span>
+          </label>
+        </div>
 
         {modo === 'sintetico' ? (
           <SinteticoForm
@@ -210,9 +310,10 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
             mallasGuardadas={mallasGuardadas}
             onSelectScenario={handleSelectScenario}
             standalone={standalone}
-            onCohorteCompleta={(alumnos) => {
+            onCohorteCompleta={async (alumnos) => {
               // Empaqueta como un CohorteResponse "manual" reutilizando el
               // mismo render de resultados sintéticos.
+              setPrediccionesPorAlumno({});
               setResultado({
                 count: alumnos.length,
                 profile: {
@@ -225,8 +326,27 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
                 seed_base: 0,
                 alumnos,
               });
+              // Proyectar también las cohortes manuales para que la tabla
+              // muestre % de cada estado en vez de los datos crudos del
+              // historial ingresado.
+              await proyectarCohorte(alumnos, modoPreciso ? 5000 : 500);
             }}
           />
+        )}
+
+        {loadingProj && progresoProj && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900 flex items-center gap-3">
+            <Loader2 size={18} className="animate-spin shrink-0" />
+            <div className="flex-1">
+              <div className="font-semibold">Proyectando cohorte… {progresoProj.hecho}/{progresoProj.total} alumnos</div>
+              <div className="w-full h-1.5 bg-blue-100 rounded mt-2 overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{ width: `${(progresoProj.hecho / Math.max(1, progresoProj.total)) * 100}%` }}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
         {stats && resultado && alumnosConId.length > 0 && (
@@ -234,6 +354,7 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
             stats={stats}
             count={resultado.count}
             alumnos={alumnosConId}
+            predicciones={prediccionesPorAlumno}
             onVerDetalle={handleVerDetalle}
             onDescargarAlumno={handleDescargarAlumno}
             onDescargarTodo={handleDescargarTodo}
@@ -245,9 +366,7 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
         <DetalleAlumnoModal
           alumno={detalleAlumno}
           displayId={detalleAlumnoId}
-          apiUrl={apiUrl}
-          escenario={escenario}
-          mallaOverride={mallaOverride}
+          prediccion={prediccionesPorAlumno[detalleAlumnoId] ?? null}
           onClose={() => setDetalleAlumno(null)}
         />
       )}
@@ -553,6 +672,7 @@ interface ResultadosProps {
   stats: ReturnType<typeof calcularEstadisticas>;
   count: number;
   alumnos: Array<{ displayId: string } & StudentHistory>;
+  predicciones: Record<string, IndividualPrediction>;
   onVerDetalle: (idx: number) => void;
   onDescargarAlumno: (idx: number) => void;
   onDescargarTodo: () => void;
@@ -562,6 +682,7 @@ function ResultadosSection({
   stats,
   count,
   alumnos,
+  predicciones,
   onVerDetalle,
   onDescargarAlumno,
   onDescargarTodo,
@@ -593,9 +714,12 @@ function ResultadosSection({
 
       <h4 className="text-sm font-bold text-slate-700 mb-2">
         Tabla de alumnos
+        <span className="text-xs font-normal text-slate-500 ml-2">
+          (% por estado sobre las iteraciones de proyección)
+        </span>
         {alumnos.length > 100 && (
           <span className="text-xs font-normal text-slate-500 ml-2">
-            (mostrando primeros 100 — descargue el ZIP para el total)
+            · mostrando primeros 100 — descargue el ZIP para el total
           </span>
         )}
       </h4>
@@ -604,23 +728,26 @@ function ResultadosSection({
           <thead className="bg-slate-50 sticky top-0">
             <tr>
               <th className="text-left p-2 font-semibold text-slate-600">ID</th>
-              <th className="text-left p-2 font-semibold text-slate-600">Estado</th>
-              <th className="text-right p-2 font-semibold text-slate-600">Sem.</th>
-              <th className="text-right p-2 font-semibold text-slate-600">Aprob.</th>
-              <th className="text-right p-2 font-semibold text-slate-600">Reprob.</th>
+              <th className="text-right p-2 font-semibold text-emerald-700">% Titulado</th>
+              <th className="text-right p-2 font-semibold text-amber-700">% Elim. TAmin</th>
+              <th className="text-right p-2 font-semibold text-red-700">% Elim. Opor</th>
+              <th className="text-right p-2 font-semibold text-slate-600">Sem. proy.</th>
               <th className="text-right p-2 font-semibold text-slate-600">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {alumnos.slice(0, 100).map((a, idx) => {
-              const s = statsAlumno(a);
+              const pred = predicciones[a.displayId];
+              const pct = (v?: number) => (typeof v === 'number' ? (v * 100).toFixed(1) + '%' : '…');
               return (
                 <tr key={a.displayId} className="border-t border-slate-100">
                   <td className="p-2 font-mono font-bold text-blue-700">{a.displayId}</td>
-                  <td className="p-2"><EstadoBadge estado={a.estado || 'desconocido'} /></td>
-                  <td className="p-2 text-right text-slate-700">{(a.semestres ?? []).length}</td>
-                  <td className="p-2 text-right text-slate-700">{s.aprob}</td>
-                  <td className="p-2 text-right text-slate-700">{s.reprob}</td>
+                  <td className="p-2 text-right tabular-nums text-emerald-800">{pct(pred?.tasa_titulacion)}</td>
+                  <td className="p-2 text-right tabular-nums text-amber-800">{pct(pred?.tasa_eliminado_tamin)}</td>
+                  <td className="p-2 text-right tabular-nums text-red-800">{pct(pred?.tasa_eliminado_opor)}</td>
+                  <td className="p-2 text-right text-slate-700">
+                    {pred ? pred.semestres_proyectados.toFixed(1) : '…'}
+                  </td>
                   <td className="p-2 text-right">
                     <div className="flex justify-end gap-1">
                       <button
@@ -652,48 +779,19 @@ function ResultadosSection({
 interface DetalleAlumnoModalProps {
   alumno: StudentHistory;
   displayId: string;
-  apiUrl: (path: string) => string;
-  escenario: string;
-  mallaOverride: MallaCustomOverride | null;
+  // Predicción pre-calculada al generar la cohorte. El modal es solo
+  // lectura — no re-proyecta. Si null, significa que la proyección no
+  // está disponible (caso raro, p.ej. error de red al generar).
+  prediccion: IndividualPrediction | null;
   onClose: () => void;
 }
 
 function DetalleAlumnoModal({
   alumno,
   displayId,
-  apiUrl,
-  escenario,
-  mallaOverride,
+  prediccion,
   onClose,
 }: DetalleAlumnoModalProps) {
-  const api = useStudentApi({ apiUrl });
-  const [prediccion, setPrediccion] = useState<IndividualPrediction | null>(null);
-  const [loadingProj, setLoadingProj] = useState(false);
-  const [errorProj, setErrorProj] = useState<string>('');
-
-  const handleProyectar = async () => {
-    setErrorProj('');
-    setPrediccion(null);
-    setLoadingProj(true);
-    try {
-      const pred = await api.simularIndividual({
-        history: alumno,
-        scenario: mallaOverride ? undefined : escenario,
-        ...(mallaOverride ?? {}),
-        iteraciones: 500,
-        seed: 42,
-      });
-      setPrediccion({
-        ...pred,
-        probabilidades_por_ramo: pred.probabilidades_por_ramo ?? [],
-      });
-    } catch (e) {
-      setErrorProj((e as Error).message);
-    } finally {
-      setLoadingProj(false);
-    }
-  };
-
   const handleDescargar = async () => {
     const alumnoExport = combinarHistorialYProyeccion(alumno, prediccion);
     await descargarAlumno(alumnoExport, displayId, prediccion ?? undefined);
@@ -728,14 +826,6 @@ function DetalleAlumnoModal({
           </div>
           <div className="flex gap-2 items-center">
             <button
-              onClick={handleProyectar}
-              disabled={loadingProj}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all"
-            >
-              {loadingProj ? <Loader2 size={12} className="animate-spin" /> : <Target size={12} />}
-              {prediccion ? 'Re-proyectar' : 'Proyectar Futuro'}
-            </button>
-            <button
               onClick={handleDescargar}
               className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1"
             >
@@ -750,16 +840,16 @@ function DetalleAlumnoModal({
           </div>
         </div>
 
-        {errorProj && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {errorProj}
-          </div>
-        )}
-
         <div className="p-6">
           <KanbanAlumno
             alumno={alumnoCombinado}
             proyectadoDesdeIdx={prediccion ? semestresHistorial : undefined}
+            probabilidadesPorRamo={prediccion?.probabilidades_por_ramo}
+            prediccionTasas={prediccion ? {
+              titulacion: prediccion.tasa_titulacion,
+              eliminadoTamin: prediccion.tasa_eliminado_tamin,
+              eliminadoOpor: prediccion.tasa_eliminado_opor,
+            } : undefined}
           />
 
           {prediccion && (
@@ -865,18 +955,6 @@ function calcularEstadisticas(alumnos: StudentHistory[]) {
   };
 }
 
-function statsAlumno(h: StudentHistory) {
-  let aprob = 0;
-  let reprob = 0;
-  for (const sem of h.semestres ?? []) {
-    for (const c of sem.cursos ?? []) {
-      if (c.estado === 'aprobado') aprob++;
-      else if (c.estado === 'reprobado') reprob++;
-    }
-  }
-  return { aprob, reprob };
-}
-
 function Kpi({ label, value, count, color }: { label: string; value: string; count?: number; color: string }) {
   const colorClass =
     {
@@ -896,16 +974,3 @@ function Kpi({ label, value, count, color }: { label: string; value: string; cou
   );
 }
 
-function EstadoBadge({ estado }: { estado: string }) {
-  const cls = {
-    titulado: 'bg-emerald-100 text-emerald-700',
-    eliminado_tamin: 'bg-amber-100 text-amber-700',
-    eliminado_opor: 'bg-red-100 text-red-700',
-    activa: 'bg-blue-100 text-blue-700',
-  }[estado] || 'bg-slate-100 text-slate-600';
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>
-      {estado}
-    </span>
-  );
-}

@@ -17,7 +17,7 @@ import type {
 // ==========================================
 // El usuario empieza con un kanban de la malla seleccionada (todos los
 // ramos visibles, sin "tomar"). Para cada ramo puede:
-//   1. Click → modal: estado (aprobado/reprobado/en curso) + nota + período
+//   1. Click → modal: estado (aprobado/reprobado) + nota + período
 //   2. El alumno se construye en memoria como un StudentHistory
 //   3. Botón "Aplicar este alumno" envía al padre para mostrar/proyectar.
 //
@@ -274,7 +274,7 @@ export default function FlujoManualAlumno({
 
         <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3 mb-4">
           <strong>Cómo usar:</strong> haz click en un ramo del kanban de abajo para registrarlo
-          en el historial del alumno. Marque el estado (aprobado/reprobado/en curso), la nota y el
+          en el historial del alumno. Marque el estado (aprobado/reprobado), la nota y el
           período en que lo cursó. Cuando termine, presione "Aplicar este alumno" para verlo
           completo y proyectar su futuro.
         </div>
@@ -471,7 +471,13 @@ function RamoEditModal({
   const { asig, existente } = state;
   const previo = existente?.curso;
 
-  const [estado, setEstado] = useState<EstadoSubject>(previo?.estado ?? 'aprobado');
+  // Manualmente solo se permiten aprobado/reprobado. Si el ramo venía de
+  // un import con otro estado (en_curso/abandonado), forzamos a aprobado
+  // como default — el usuario puede cambiarlo al editar.
+  const [estado, setEstado] = useState<EstadoSubject>(() => {
+    const e = previo?.estado;
+    return e === 'reprobado' ? 'reprobado' : 'aprobado';
+  });
   const [nota, setNota] = useState<number>(previo?.nota ?? (asig.semestre <= 4 ? 5.0 : 5.5));
 
   // Sugerir período: si el ramo es del sem nominal N, sugerir S1-{anioBase + (N-1)/2}.
@@ -521,7 +527,7 @@ function RamoEditModal({
           <div>
             <label className="text-xs font-semibold text-slate-600 mb-2 block">Estado</label>
             <div className="grid grid-cols-2 gap-2">
-              {(['aprobado', 'reprobado', 'en_curso', 'abandonado'] as EstadoSubject[]).map((e) => (
+              {(['aprobado', 'reprobado'] as EstadoSubject[]).map((e) => (
                 <button
                   key={e}
                   type="button"

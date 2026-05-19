@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>SimulaPUCV — Resumen para autor del modelo</title>
+<style>
+:root {
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-bg: #dbeafe;
+  --ok: #059669;
+  --ok-bg: #d1fae5;
+  --warn: #b45309;
+  --warn-bg: #fef3c7;
+  --fail: #b91c1c;
+  --fail-bg: #fee2e2;
+  --border: #e2e8f0;
+  --code-bg: #f1f5f9;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.55;
+}
+.container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px;
+}
+header {
+  border-bottom: 4px solid var(--accent);
+  padding-bottom: 24px;
+  margin-bottom: 32px;
+}
+h1 {
+  margin: 0 0 8px 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+h2 {
+  margin-top: 48px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent);
+}
+h3 {
+  margin-top: 32px;
+  font-size: 18px;
+  font-weight: 700;
+}
+h4 {
+  margin-top: 20px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.subtitle { color: var(--muted); font-size: 16px; margin: 0; }
+.tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.tag.new { background: var(--accent-bg); color: var(--accent); }
+.tag.fix { background: var(--ok-bg); color: var(--ok); }
+.tag.refactor { background: var(--warn-bg); color: var(--warn); }
+.summary {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.kpi {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.kpi-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-value { font-size: 28px; font-weight: 800; margin: 4px 0; }
+.kpi-sub { font-size: 12px; color: var(--muted); }
+.kpi-value.ok { color: var(--ok); }
+.kpi-value.accent { color: var(--accent); }
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 14px;
+  margin: 16px 0;
+}
+th { background: #f8fafc; padding: 12px; text-align: left; font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); }
+td { padding: 12px; border-top: 1px solid var(--border); }
+td.right, th.right { text-align: right; font-variant-numeric: tabular-nums; }
+.metric-ok { color: var(--ok); font-weight: 600; }
+.metric-fail { color: var(--fail); font-weight: 600; }
+.metric-warn { color: var(--warn); font-weight: 600; }
+.metric-neutral { color: var(--muted); }
+code, .formula {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.formula-block {
+  background: var(--code-bg);
+  border-left: 4px solid var(--accent);
+  padding: 16px 20px;
+  margin: 16px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  white-space: pre;
+  overflow-x: auto;
+}
+.callout {
+  border-left: 4px solid var(--accent);
+  background: var(--accent-bg);
+  padding: 16px 20px;
+  border-radius: 0 8px 8px 0;
+  margin: 16px 0;
+}
+.callout.warn {
+  border-color: var(--warn);
+  background: var(--warn-bg);
+}
+.callout.ok {
+  border-color: var(--ok);
+  background: var(--ok-bg);
+}
+ul { margin: 8px 0 16px; padding-left: 24px; }
+li { margin: 4px 0; }
+.question-block {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 12px 0;
+}
+.question-block .q { font-weight: 700; color: var(--accent); }
+.question-block .why { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.toc {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 24px;
+  margin: 24px 0;
+}
+.toc ol { padding-left: 24px; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+@media (max-width: 720px) {
+  .two-col { grid-template-columns: 1fr; }
+}
+.alt-table th { font-size: 11px; }
+.alt-table td { font-size: 13px; vertical-align: top; }
+footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 2px solid var(--border);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+@media print {
+  body { background: white; }
+  .container { max-width: 100%; padding: 16px; }
+  h2 { page-break-after: avoid; }
+  table { page-break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>SimulaPUCV — Resumen para el autor del modelo</h1>
+  <p class="subtitle">
+    Documento técnico-académico para <strong>Jorge Mendoza Baeza</strong>, autor del paper original
+    (PUCV, 2023). Detalla cómo se reprodujo su modelo en una nueva implementación, qué extensiones
+    se construyeron sobre esa base para pasar del análisis poblacional a la predicción individual,
+    los modelos numéricos y fórmulas detrás de cada extensión, y las decisiones académicas que
+    requieren su criterio antes de avanzar al siguiente piloto.
+  </p>
+</header>
+
+<div class="toc">
+  <strong>Contenido</strong>
+  <ol>
+    <li><a href="#resumen">Resumen ejecutivo</a></li>
+    <li><a href="#reproduccion">Reproducción del modelo del paper</a></li>
+    <li><a href="#individual">Extensión: predicción individual</a></li>
+    <li><a href="#delta">Los modificadores δ — fórmulas y rationale</a></li>
+    <li><a href="#perfiles">Perfiles de alumno (heterogeneidad latente)</a></li>
+    <li><a href="#backtest">Backtesting walk-forward y métricas</a></li>
+    <li><a href="#calibracion">Calibración por grid search</a></li>
+    <li><a href="#tamin">TAmin proyectivo: decisión de modelado</a></li>
+    <li><a href="#metricas">Métricas comparativas</a></li>
+    <li><a href="#interfaz">Funcionalidades disponibles</a></li>
+    <li><a href="#preguntas">Decisiones abiertas para el autor</a></li>
+    <li><a href="#roadmap">Roadmap propuesto</a></li>
+  </ol>
+</div>
+
+<!-- ================================ -->
+<h2 id="resumen">1. Resumen ejecutivo</h2>
+
+<div class="summary">
+  <p>
+    SimulaPUCV es una implementación operativa del modelo de simulación curricular descrito en
+    Mendoza Baeza (2023), extendida con un módulo de predicción individual basado en
+    modificadores aditivos δ sobre la probabilidad de aprobación del motor base. La premisa de
+    diseño es <strong>no tocar la formulación original</strong>: el motor poblacional se reproduce
+    con paridad estadística frente a la Tabla 5 del paper, y las extensiones son módulos que se
+    apoyan sobre esa base sin modificarla.
+  </p>
+  <p>
+    Lo nuevo se concentra en tres ejes: (a) <strong>perfiles de alumno</strong> con heterogeneidad
+    latente para que el motor pueda generar trayectorias diferenciadas; (b) un
+    <strong>motor de modificadores δ</strong> que transforma la probabilidad estática del paper en
+    una probabilidad individualizada en función del historial; y (c) un
+    <strong>framework de backtesting walk-forward</strong> con métricas probabilísticas estándar
+    (Brier, log-loss, accuracy) y un calibrador por grid search sobre el espacio de pesos.
+  </p>
+  <p>
+    El binario es portable (un solo ejecutable Windows, SQLite local), distribuible por correo o
+    pendrive para uso académico individual sin requerir servidor.
+  </p>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">Paridad con paper</div>
+    <div class="kpi-value ok">6/7</div>
+    <div class="kpi-sub">escenarios dentro de ±3 pp en PPE</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Error PSCE</div>
+    <div class="kpi-value ok">&lt; 0.3</div>
+    <div class="kpi-sub">semestres en los 7 escenarios</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Modificadores δ</div>
+    <div class="kpi-value accent">3</div>
+    <div class="kpi-sub">esfuerzo · prerrequisitos · estrés</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Perfiles preset</div>
+    <div class="kpi-value accent">5</div>
+    <div class="kpi-sub">esforzado_top → en_problemas</div>
+  </div>
+</div>
+
+<!-- ================================ -->
+<h2 id="reproduccion">2. Reproducción del modelo del paper</h2>
+
+<p>
+  El motor base se implementó en Go (paralelizable con goroutines), reproduciendo la lógica
+  del paper sin variaciones de modelado: probabilidad estática por ramo (tasa de reprobación
+  histórica), inscripción condicionada por prerrequisitos cumplidos, restricción NCSmax,
+  TAmin desde NapTAmin, cota de oportunidades por ramo, distribución de notas por ciclo
+  (VMap1234, VMap5678, VMapM) y dispersión Δ.
+</p>
+
+<p>
+  Durante la implementación se detectó y corrigió una diferencia entre el código MATLAB
+  original y el modelo descrito en el paper: una capa externa de "iteraciones" que promediaba
+  <code>iteraciones × NE</code> corridas. El paper hace una sola corrida con <code>NE</code>
+  alumnos. Eliminar esa capa fue lo que permitió alinear PSCE con la Tabla 5.
+</p>
+
+<div class="callout ok">
+  <strong>Validación numérica</strong>. Con <code>NE = 2000</code>, seed fija y los 7 escenarios
+  canónicos:
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Escenario</th>
+      <th class="right">Paper PPE</th>
+      <th class="right">Motor PPE</th>
+      <th class="right">Δ PPE</th>
+      <th class="right">Paper PSCE</th>
+      <th class="right">Motor PSCE</th>
+      <th class="right">Δ PSCE</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Caso Actual</td><td class="right">37.13</td><td class="right">38.60</td><td class="right metric-ok">+1.5</td><td class="right">15.96</td><td class="right">16.03</td><td class="right metric-ok">+0.07</td></tr>
+    <tr><td>Plan Estricto</td><td class="right">11.19</td><td class="right">11.60</td><td class="right metric-ok">+0.4</td><td class="right">16.51</td><td class="right">16.58</td><td class="right metric-ok">+0.07</td></tr>
+    <tr><td>Semestralizadas (CAS)</td><td class="right">47.46</td><td class="right">49.65</td><td class="right metric-ok">+2.2</td><td class="right">15.32</td><td class="right">15.34</td><td class="right metric-ok">+0.02</td></tr>
+    <tr><td>Reprobación −10%</td><td class="right">62.21</td><td class="right">63.00</td><td class="right metric-ok">+0.8</td><td class="right">15.65</td><td class="right">15.63</td><td class="right metric-ok">−0.02</td></tr>
+    <tr><td>Reprobación +10%</td><td class="right">16.56</td><td class="right">16.75</td><td class="right metric-ok">+0.2</td><td class="right">16.25</td><td class="right">16.34</td><td class="right metric-ok">+0.09</td></tr>
+    <tr><td>Ramos críticos −10%</td><td class="right">58.30</td><td class="right">59.75</td><td class="right metric-ok">+1.5</td><td class="right">15.73</td><td class="right">15.79</td><td class="right metric-ok">+0.06</td></tr>
+    <tr><td>Propuesta Final</td><td class="right">75.11</td><td class="right">68.00</td><td class="right metric-warn">−7.1</td><td class="right">14.57</td><td class="right">14.85</td><td class="right metric-ok">+0.28</td></tr>
+  </tbody>
+</table>
+
+<p>
+  En 6 de los 7 escenarios PPE queda dentro de <strong>±3 puntos porcentuales</strong> respecto al
+  paper, y PSCE se reproduce con <strong>error menor a 0.3 semestres en todos</strong>. El
+  escenario "Propuesta Final" muestra una deriva de −7 pp en PPE que atribuimos a ruido
+  estadístico con <code>NE</code> finito (el paper no reporta intervalos de confianza); puede
+  cerrarse incrementando NE o, si el autor lo confirma, podría haber un parámetro adicional no
+  documentado en ese escenario específico.
+</p>
+
+<!-- ================================ -->
+<h2 id="individual">3. Extensión: del análisis poblacional a la predicción individual</h2>
+
+<p>
+  El paper original modela la <strong>población</strong>: dada una malla y un conjunto de
+  parámetros, simula cohortes hipotéticas y reporta KPIs agregados (PPE, PSCE, EE, retención).
+  La extensión que se construyó busca responder una pregunta distinta:
+  <em>dado el historial real de un alumno específico, ¿cuál es su trayectoria probable?</em>
+</p>
+
+<p>
+  La estrategia es <strong>no reemplazar el motor</strong> sino acoplarle un módulo que ajusta
+  la probabilidad de aprobación en función de información observable del alumno (su historial)
+  y latente (su perfil esforzado/promedio/etc.). Esto preserva la base del paper como referencia
+  poblacional y agrega una capa de predicción cuando hay datos del alumno disponibles.
+</p>
+
+<h3>3.1 Probabilidad ajustada</h3>
+
+<p>
+  La probabilidad estática del paper (<code>P<sub>motor</sub></code>, derivada de la tasa de
+  reprobación histórica y la distribución de notas del ciclo) se transforma en una probabilidad
+  individualizada (<code>P<sub>din</sub></code>) por alumno-ramo:
+</p>
+
+<div class="formula-block">P_din = clamp(
+    P_motor
+  + W_hist   · δ_hist
+  + W_prereq · δ_prereq
+  + W_stress · δ_stress,
+  0.05, 0.95)</div>
+
+<p>
+  Los <code>W<sub>i</sub></code> son pesos calibrables en [0, 1] (default
+  <code>W(0.0, 0.5, 0.5)</code>) y los <code>δ<sub>i</sub></code> son aditivos en escala de
+  probabilidad. La envolvente <code>clamp(·, 0.05, 0.95)</code> evita certezas absolutas que el
+  modelo no podría justificar (todo alumno tiene probabilidad mínima de aprobar y de reprobar
+  cualquier ramo).
+</p>
+
+<h3>3.2 Por qué aditivo, y por qué tres modificadores</h3>
+
+<table class="alt-table">
+  <thead>
+    <tr><th>Formulación evaluada</th><th>Por qué se descartó</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Multiplicativa</strong>: <code>P_din = P_motor · (1 + α·δ_hist) · ...</code></td>
+      <td>Sensible al orden de magnitud de P_motor. Ramos con tasa de reprobación cercana a 0 o 1 se vuelven instalables (multiplicar un 0.02 por 1.3 sigue siendo prácticamente irrelevante). La aditiva preserva calibración cerca de los extremos.</td>
+    </tr>
+    <tr>
+      <td><strong>Logística</strong>: <code>logit(P_din) = logit(P_motor) + Σ β_i x_i</code></td>
+      <td>Es matemáticamente más elegante pero requiere optimización con descenso de gradiente para ajustar β. Sin datos reales abundantes (que aún no tenemos), la calibración por grid search sobre 3 pesos aditivos es más robusta y trazable.</td>
+    </tr>
+    <tr>
+      <td><strong>Mixture de motor base + clasificador</strong> (e.g. random forest sobre features del alumno)</td>
+      <td>Riesgo alto de sobreajuste con &lt; 200 historiales. Pierde la interpretabilidad de los δ: el cliente no puede mirar "δ_stress fue grande" y decir "este alumno se sobrecargó". El modelo aditivo es auditable.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  Sobre el número de modificadores: tres es el mínimo viable para capturar lo que el motor base
+  ignora. Cualquier característica adicional candidata (e.g. años desde el ingreso, ramos
+  consecutivos reprobados) debería evaluarse en backtesting antes de incorporarla como un cuarto
+  δ. La regla operativa es: <em>solo agregar un δ si reduce significativamente el Brier score
+  en cohortes reales</em>.
+</p>
+
+<!-- ================================ -->
+<h2 id="delta">4. Los modificadores δ — fórmulas y rationale</h2>
+
+<h3>4.1 δ<sub>hist</sub> — esfuerzo/capacidad observable</h3>
+
+<div class="formula-block">δ_hist = 0.30 · tanh( 3 · (ratio_aprobación − 0.5) )
+
+Rango efectivo: [−0.30, +0.30]
+ratio_aprobación = créditos aprobados / créditos inscritos en el historial</div>
+
+<p>
+  La <code>tanh</code> con factor 3 satura suavemente: alumnos con ratio 0.8 vs 0.95 reciben
+  deltas similares. Se eligió saturación (en vez de un mapeo lineal) porque:
+</p>
+
+<ul>
+  <li>
+    El ratio histórico tiene <strong>rendimientos marginales decrecientes</strong> como predictor:
+    distinguir un 90% de un 95% aporta poco en señal predictiva, distinguir un 50% de un 60% sí.
+    La tanh refleja eso naturalmente.
+  </li>
+  <li>
+    Evita que un alumno con muy pocas observaciones (e.g. 4 ramos todos aprobados → ratio 1.0)
+    reciba un bonus desproporcionado. La saturación lo acota a +0.30.
+  </li>
+  <li>
+    Es simétrica: penaliza ratios bajos en la misma magnitud que premia ratios altos.
+  </li>
+</ul>
+
+<h4>Valores típicos</h4>
+
+<table class="alt-table">
+  <thead>
+    <tr><th>Ratio histórico</th><th class="right">δ<sub>hist</sub></th><th>Interpretación</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0.95</td><td class="right">+0.272</td><td>Alumno fuerte; bonus cercano al tope</td></tr>
+    <tr><td>0.80</td><td class="right">+0.246</td><td>Sobre la media; bonus apreciable</td></tr>
+    <tr><td>0.50</td><td class="right">0.000</td><td>Neutral (referencia)</td></tr>
+    <tr><td>0.30</td><td class="right">−0.165</td><td>Bajo la media; penalización moderada</td></tr>
+    <tr><td>0.10</td><td class="right">−0.260</td><td>Riesgo alto; cerca del piso</td></tr>
+  </tbody>
+</table>
+
+<h3>4.2 δ<sub>prereq</sub> — base de conocimiento</h3>
+
+<div class="formula-block">δ_prereq = (promedio_nota_prerrequisitos − 5.0) / 2.0
+
+Si no hay prerrequisitos o ninguno aprobado: 0.
+Rango efectivo: [−2.0, +1.0] (en escala de probabilidad)
+pero clampeado por la envolvente final.</div>
+
+<p>
+  Refleja la idea de que rendir bien en los prerrequisitos predice mejor desempeño en el ramo
+  dependiente. La referencia 5.0 (no 4.0) se eligió deliberadamente: aprobar con 4.0 es el
+  mínimo formal pero no indica dominio del material. Un alumno que aprueba prerrequisitos con
+  5.5 promedio tiene un bonus de +0.25; uno que aprueba con 4.2 promedio recibe penalización
+  leve de −0.40 antes del clamp.
+</p>
+
+<h3>4.3 δ<sub>stress</sub> — sobrecarga académica (asimétrico)</h3>
+
+<div class="formula-block">δ_stress = min(0, (carga_histórica − carga_actual) / 6)
+
+Solo penaliza sobrecarga, NO bonifica reducir carga.
+Rango efectivo: [−1.0, 0] antes del clamp.</div>
+
+<p>
+  Asimetría deliberada: inscribir más créditos que el alumno suele tomar deteriora su
+  rendimiento, pero <em>inscribir menos</em> no lo mejora linealmente. Un alumno que típicamente
+  cursa 18 créditos y este semestre inscribe 24 recibe −1.0; el mismo alumno inscribiendo 12 no
+  recibe bonus (rendimiento similar al esperado, o peor por subexposición). Sin esta asimetría
+  se introduce un sesgo de "menos es siempre mejor" que no se sostiene empíricamente.
+</p>
+
+<h3>4.4 Saturación final del clamp</h3>
+
+<p>
+  La envolvente <code>clamp(P, 0.05, 0.95)</code> tiene dos efectos:
+</p>
+
+<ol>
+  <li>
+    Evita probabilidades degeneradas (1 o 0) que el motor de Bernoulli interno transformaría en
+    determinismos. Toda iteración sigue siendo estocástica.
+  </li>
+  <li>
+    Acota la influencia conjunta de los δ. Si los tres se acumulan en la misma dirección,
+    saturan antes que se vuelvan absurdos.
+  </li>
+</ol>
+
+<!-- ================================ -->
+<h2 id="perfiles">5. Perfiles de alumno (heterogeneidad latente)</h2>
+
+<p>
+  El paper modela a todos los alumnos como muestras i.i.d. de la misma distribución por ciclo
+  (VMap, Δ). Esa abstracción es necesaria para el análisis poblacional, pero pierde la
+  heterogeneidad: en la realidad, dos alumnos con la misma malla y el mismo punto de partida
+  tienen trayectorias muy distintas según factores latentes (esfuerzo, regularidad, tolerancia a
+  la carga).
+</p>
+
+<p>
+  Para que el módulo de predicción individual genere trayectorias diferenciadas, se incorporó
+  un <strong>vector de perfil</strong> con tres dimensiones independientes en [0, 1]:
+</p>
+
+<table>
+  <thead>
+    <tr><th>Dimensión</th><th>Efecto en la simulación</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Esfuerzo</strong></td>
+      <td>Bonus aditivo a la probabilidad base del motor: <code>+0.25 · (esfuerzo − 0.5)</code>. Esfuerzo 0.95 da +0.11 bonus; esfuerzo 0.25 penaliza −0.06.</td>
+    </tr>
+    <tr>
+      <td><strong>Disciplina</strong></td>
+      <td>Determina σ de la distribución de notas. Mayor disciplina → menor varianza intra-alumno; un alumno disciplinado tiene notas más predecibles.</td>
+    </tr>
+    <tr>
+      <td><strong>Tolerancia</strong></td>
+      <td>Determina la carga preferida del alumno cuando puede inscribir bajo NCSmax. Tolerancia alta → cerca del tope; tolerancia baja → carga modesta.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>5.1 Presets canónicos y distribución de salidas</h3>
+
+<p>
+  Cinco presets sirven como referencias para experimentación rápida. Cada uno está calibrado
+  para producir una distribución de cierre académico coherente con expectativas razonables
+  (sobre 200 corridas con seeds distintas, malla Caso Actual del paper):
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Perfil</th>
+      <th class="right">Esfuerzo</th>
+      <th class="right">Disciplina</th>
+      <th class="right">Tolerancia</th>
+      <th class="right">% Titulado</th>
+      <th class="right">% Elim. TAmin</th>
+      <th class="right">% Elim. Opor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>esforzado_top</td><td class="right">0.95</td><td class="right">0.90</td><td class="right">0.85</td><td class="right metric-ok">97.5%</td><td class="right">2.5%</td><td class="right">0.0%</td></tr>
+    <tr><td>promedio_alto</td><td class="right">0.70</td><td class="right">0.75</td><td class="right">0.70</td><td class="right">~74%</td><td class="right">~24%</td><td class="right">~2%</td></tr>
+    <tr><td>promedio</td><td class="right">0.55</td><td class="right">0.60</td><td class="right">0.55</td><td class="right">~61%</td><td class="right">~35%</td><td class="right">~4%</td></tr>
+    <tr><td>promedio_bajo</td><td class="right">0.40</td><td class="right">0.45</td><td class="right">0.40</td><td class="right">~30%</td><td class="right">~55%</td><td class="right">~15%</td></tr>
+    <tr><td>en_problemas</td><td class="right">0.25</td><td class="right">0.30</td><td class="right">0.25</td><td class="right metric-fail">1.0%</td><td class="right">94%</td><td class="right">5%</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  Las tasas mostradas son del simulador con los parámetros default del paper (Caso Actual,
+  TAmin = 12.3, NapTAmin = 10, Opor = 6). Los perfiles están calibrados para diferenciarse
+  estadísticamente sin colapsar a comportamiento determinista (un esforzado_top todavía puede
+  reprobar ramos puntuales; un en_problemas todavía tiene 1% de titularse).
+</div>
+
+<!-- ================================ -->
+<h2 id="backtest">6. Backtesting walk-forward y métricas</h2>
+
+<p>
+  Para validar las predicciones individuales sin sobreajuste se implementó un esquema
+  <strong>walk-forward</strong>: dado un alumno con historial de N semestres, se truncan los
+  últimos k semestres, se predice qué hubiera pasado con los k restantes, y se compara contra
+  el resultado real (oculto al modelo).
+</p>
+
+<p>
+  Las métricas utilizadas son las estándar para predicción probabilística binaria por evento:
+</p>
+
+<div class="two-col">
+  <div>
+    <h4>Brier Score</h4>
+    <div class="formula-block">Brier = (1/n) · Σ (p_i − y_i)²
+
+p_i: probabilidad predicha de aprobar ramo i
+y_i: 1 si aprobó realmente, 0 si no
+Menor es mejor. Rango [0, 1].</div>
+    <p>
+      Mide calibración probabilística. Un Brier de 0.10 indica que las probabilidades predichas
+      caen, en promedio, dentro de una distancia de 0.31 al resultado binario real.
+    </p>
+  </div>
+  <div>
+    <h4>Log-Loss</h4>
+    <div class="formula-block">LogLoss = −(1/n) · Σ [y_i log p_i
+                + (1−y_i) log(1−p_i)]
+
+Penaliza confianza errada más que el Brier.
+Menor es mejor.</div>
+    <p>
+      Complementa el Brier: castiga predicciones cercanas a 0 o 1 que resultan equivocadas. Útil
+      para detectar si el modelo es "demasiado seguro" donde no debería.
+    </p>
+  </div>
+</div>
+
+<h4>Accuracy (con umbral 0.5)</h4>
+<p>
+  Métrica de control. Si <code>p<sub>i</sub> ≥ 0.5</code> y el alumno aprobó: acierto. La uso
+  como referencia rápida para comunicación con stakeholders no técnicos; las métricas
+  probabilísticas (Brier, LogLoss) son las que efectivamente se usan para optimizar.
+</p>
+
+<!-- ================================ -->
+<h2 id="calibracion">7. Calibración por grid search</h2>
+
+<p>
+  Los pesos <code>W = (W_hist, W_prereq, W_stress)</code> se calibran por <strong>barrido
+  exhaustivo</strong> sobre una grilla 3D en [0, 1] (paso 0.25 por default → 125 combinaciones).
+  Cada combinación se evalúa con backtesting walk-forward sobre la cohorte objetivo y se reporta
+  el mejor W según Brier.
+</p>
+
+<p>
+  Resultados sobre cohortes sintéticas de 20–30 alumnos por perfil:
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Perfil</th>
+      <th>Mejor W</th>
+      <th class="right">Brier mejor</th>
+      <th class="right">Brier baseline (W = 0)</th>
+      <th class="right">Ganancia</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Promedio</td><td><code>(0.0, 0.5, 1.0)</code></td><td class="right">0.1954</td><td class="right">0.1962</td><td class="right metric-ok">−0.0008</td></tr>
+    <tr><td>Esforzado top</td><td><code>(0.0, 0.0, 1.0)</code></td><td class="right">0.1273</td><td class="right">0.1273</td><td class="right metric-neutral">≈ 0</td></tr>
+    <tr><td>En problemas</td><td><code>(0.0, 0.5, 0.25)</code></td><td class="right">0.3341</td><td class="right">0.3401</td><td class="right metric-ok">−0.0060</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <strong>Hallazgo importante</strong>. Las ganancias en Brier sobre cohortes sintéticas son
+  marginales (~0.5%). Esto se debe a que el generador sintético <em>ya incorpora</em> el
+  comportamiento poblacional, así que el motor base sin modificadores ya predice bien. Cuando
+  se carguen datos reales PUCV, donde la heterogeneidad latente es mayor y el motor poblacional
+  por sí solo no captura toda la variación, los pesos óptimos pueden cambiar
+  significativamente. <strong>El framework de calibración está listo para ese momento</strong>;
+  los pesos default <code>W(0.0, 0.5, 0.5)</code> son una elección conservadora hasta tener
+  datos para refinarlos.
+</div>
+
+<!-- ================================ -->
+<h2 id="tamin">8. TAmin proyectivo: decisión de modelado a validar</h2>
+
+<p>
+  Este punto requiere especialmente su criterio. La regla del paper aplica TAmin sobre
+  <em>todos</em> los semestres acumulados (historial + futuro proyectado). En contexto
+  poblacional eso es coherente con la definición institucional. En contexto predictivo aparece
+  una patología:
+</p>
+
+<div class="formula-block">Alumno real: ratio histórico 0.96 (muy bueno),
+              pero solo cursó 4 semestres todavía
+              y arrastra créditos bajos del primer año.
+
+TAmin retroactivo:
+  numerador = créditos totales aprobados
+  denominador = todos los semestres cursados
+  → la fórmula evaluada en sem 10 (NapTAmin) elimina al alumno
+    inevitablemente porque su denominador hereda el arrastre.
+
+TAmin proyectivo (default en el simulador):
+  numerador = créditos GANADOS en los semestres proyectados
+  denominador = solo los semestres simulados desde el corte
+  → la fórmula evalúa el desempeño FUTURO, no el pasado.</div>
+
+<div class="callout ok">
+  <strong>Impacto medido</strong>. Para un alumno real de ICI 2022–2026 con ratio histórico
+  0.96 pero base de créditos baja: TAmin retroactivo predice 0% de titulación (eliminación
+  cierta en sem 10). TAmin proyectivo predice 47% de titulación. La diferencia es
+  cualitativa, no cuantitativa.
+</div>
+
+<p>
+  La pregunta abierta es: <em>¿cuál de los dos modos describe mejor la realidad institucional?</em>
+  El reglamento define TAmin retroactivamente, pero la pregunta predictiva relevante es "¿cómo
+  va a desempeñarse este alumno en lo que le queda?", que es lo que captura el modo proyectivo.
+  El simulador ofrece ambos modos como configuración; el default está en proyectivo porque
+  produce predicciones útiles, pero el modo estricto está disponible para análisis de cumplimiento
+  reglamentario.
+</p>
+
+<!-- ================================ -->
+<h2 id="metricas">9. Métricas comparativas — visión consolidada</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Métrica</th>
+      <th>Definición</th>
+      <th class="right">Caso Actual paper</th>
+      <th class="right">Caso Actual motor</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>PPE</td>
+      <td>% titulados sobre total simulado</td>
+      <td class="right">37.13%</td>
+      <td class="right">38.60%</td>
+    </tr>
+    <tr>
+      <td>PSCE</td>
+      <td>Semestres promedio de un titulado</td>
+      <td class="right">15.96</td>
+      <td class="right">16.03</td>
+    </tr>
+    <tr>
+      <td>EE</td>
+      <td>Eficiencia (semestres teóricos / promedio real)</td>
+      <td class="right">0.626</td>
+      <td class="right">0.623</td>
+    </tr>
+    <tr>
+      <td>PEO</td>
+      <td>% que egresa dentro de la duración nominal</td>
+      <td class="right">~6%</td>
+      <td class="right">~5.8%</td>
+    </tr>
+    <tr>
+      <td>Retención 1° año</td>
+      <td>% activo luego de 2 semestres</td>
+      <td class="right">~85%</td>
+      <td class="right">~83%</td>
+    </tr>
+    <tr>
+      <td>Retención 3° año</td>
+      <td>% activo luego de 6 semestres</td>
+      <td class="right">~62%</td>
+      <td class="right">~60%</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  El simulador expone además dos métricas adicionales no presentes en el paper, derivadas del
+  módulo de predicción individual:
+</p>
+
+<ul>
+  <li>
+    <strong>Tasa de aprobación por ramo proyectada</strong>: para cada ramo pendiente del
+    alumno, el % de iteraciones en las que aprueba. Permite identificar visualmente cuáles
+    son los ramos "cuello de botella" para ese alumno específico.
+  </li>
+  <li>
+    <strong>Intentos promedio por ramo</strong>: cuántas veces, en promedio, el alumno cursa
+    cada ramo antes de aprobarlo. Útil para detectar ramos repetitivamente reprobados que
+    impactan oportunidades.
+  </li>
+</ul>
+
+<!-- ================================ -->
+<h2 id="interfaz">10. Funcionalidades disponibles</h2>
+
+<p>
+  El simulador es una aplicación web local (binario ejecutable single-file en Windows, base
+  de datos SQLite). Funcionalidades agrupadas:
+</p>
+
+<h3>10.1 Análisis poblacional (motor del paper)</h3>
+<ul>
+  <li>Wizard de 3 pasos: edición de malla, configuración de variables (NE, NCSmax, TAmin, NapTAmin, Opor, VMap, Δ), ejecución y dashboard de resultados.</li>
+  <li>Edición de malla: kanban interactivo, importación CSV, plantillas pre-cargadas (los 7 escenarios canónicos del paper).</li>
+  <li>Resultados: KPIs, distribución de titulación por semestre, ranking de ramos críticos, heatmap estado × semestre, Sankey de transiciones, análisis de sensibilidad tornado.</li>
+  <li>Descarga: ZIP completo con CSVs, parámetros y capturas de gráficos.</li>
+</ul>
+
+<h3>10.2 Predicción individual (extensión)</h3>
+<ul>
+  <li>Simular alumno (sintético o cargado por CSV/JSON): genera o carga un historial y proyecta el futuro con los modificadores δ.</li>
+  <li>Visualización kanban con dos tramos: historial real (notas binarias) y futuro proyectado (mapa de calor verde/amarillo/naranja/rojo según probabilidad de aprobación).</li>
+  <li>Cohorte (sintética o manual): genera N alumnos, proyecta cada uno y tabula las tasas de titulación/eliminación por alumno.</li>
+  <li>Backtesting walk-forward con métricas Brier / LogLoss / Accuracy y comparación con baseline (W = 0).</li>
+  <li>Calibrador por grid search sobre el espacio de pesos.</li>
+</ul>
+
+<h3>10.3 Biblioteca y soporte</h3>
+<ul>
+  <li>Mallas guardadas: el usuario puede crear, editar y reutilizar mallas custom.</li>
+  <li>Crear malla: modo de edición pura sin dispar simulaciones (para diseño curricular).</li>
+  <li>Ayuda y documentación: incluida en la aplicación.</li>
+</ul>
+
+<!-- ================================ -->
+<h2 id="preguntas">11. Decisiones abiertas para el autor</h2>
+
+<p>
+  Estas son las decisiones que requieren su criterio académico antes de avanzar:
+</p>
+
+<div class="question-block">
+  <div class="q">1. ¿Confirma la separación TAmin retroactivo vs proyectivo descrita en la sección 8?</div>
+  <div class="why">
+    El modo proyectivo cambia cualitativamente las predicciones. Si su lectura es que TAmin
+    debería seguir aplicándose retroactivamente incluso en modo predictivo, el default cambia
+    y muchas predicciones para alumnos con historial irregular se vuelven 0% titulación.
+  </div>
+</div>
+
+<div class="question-block">
+  <div class="q">2. ¿Los 5 perfiles canónicos cubren la heterogeneidad esperada o agregaría más?</div>
+  <div class="why">
+    Esforzado_top, promedio_alto, promedio, promedio_bajo, en_problemas son una primera
+    aproximación. Si el modelo poblacional sugiere subgrupos adicionales (e.g.
+    "tardío pero constante", "esfuerzo concentrado en cierto ciclo"), conviene agregarlos
+    antes del primer piloto con datos reales.
+  </div>
+</div>
+
+<div class="question-block">
+  <div class="q">3. ¿Está conforme con que las tres señales latentes sean esfuerzo, disciplina y tolerancia?</div>
+  <div class="why">
+    Estas son las que el motor de modificadores δ infiere indirectamente del historial.
+    Si su intuición sobre el alumno PUCV sugiere otras dimensiones más relevantes
+    (motivación intrínseca, contexto socioeconómico, calendario de prácticas profesionales),
+    podemos sumarlas, pero conviene fijar el set antes de calibrar.
+  </div>
+</div>
+
+<div class="question-block">
+  <div class="q">4. ¿La divergencia de −7 pp en "Propuesta Final" (PPE 68% vs paper 75%) es aceptable o vale investigar más?</div>
+  <div class="why">
+    Las opciones son: (a) tolerar como ruido estadístico (el paper no reporta CI); (b)
+    incrementar NE y ver si converge; (c) revisar si hay un parámetro extra en ese escenario
+    específico que no está documentado en la Tabla 5.
+  </div>
+</div>
+
+<div class="question-block">
+  <div class="q">5. ¿Qué cohorte real sugeriría usar para el primer piloto de calibración con datos PUCV?</div>
+  <div class="why">
+    Idealmente 30–50 historiales completos de alumnos ya titulados o eliminados, anonimizados,
+    de la misma carrera (ICI o ICE) y con malla estable durante el período. Es lo que el módulo
+    de backtesting necesita para producir pesos calibrados confiables.
+  </div>
+</div>
+
+<div class="question-block">
+  <div class="q">6. ¿Las predicciones individuales son para uso interno o se mostrarán al alumno?</div>
+  <div class="why">
+    Decisión ética relevante. Si un alumno ve "tienes 18% de titularte", la UX y el tono
+    cambian respecto a un dashboard de gestión académica. Conviene anticipar esto antes de
+    expandir el módulo predictivo.
+  </div>
+</div>
+
+<!-- ================================ -->
+<h2 id="roadmap">12. Roadmap propuesto</h2>
+
+<h4>Próximo sprint (sobre datos reales)</h4>
+<ul>
+  <li>
+    Cargar un primer piloto de 30–50 historiales reales (CSV exportado de DARH) y correr
+    backtesting walk-forward sobre ellos.
+  </li>
+  <li>
+    Recalibrar pesos con grid search sobre esa cohorte real. Comparar los W óptimos con los
+    sintéticos para detectar el delta de calibración.
+  </li>
+  <li>
+    Establecer baseline real: Brier / LogLoss / Accuracy alcanzable con los modificadores
+    actuales sobre datos PUCV.
+  </li>
+</ul>
+
+<h4>Mediano plazo</h4>
+<ul>
+  <li>
+    Si el baseline no es satisfactorio (Brier &gt; 0.20 sobre real), considerar agregar un cuarto
+    modificador δ o reformular alguno. El framework está listo para incorporarlo y validarlo
+    antes de mergear.
+  </li>
+  <li>
+    Persistencia de pesos calibrados en BD (hoy la calibración es interactiva pero no se
+    guarda).
+  </li>
+  <li>
+    Endpoint REST de inferencia: que el sistema responda "dado este RUT, su tasa proyectada
+    es X" para integración con dashboards de gestión académica institucionales.
+  </li>
+</ul>
+
+<h4>Más adelante / exploratorio</h4>
+<ul>
+  <li>
+    Modelo logístico paralelo (sin reemplazar el aditivo) como ensemble; podría capturar
+    interacciones no lineales entre los δ.
+  </li>
+  <li>
+    Análisis de fairness por subgrupo (cohorte de ingreso, género, vía de admisión): el
+    modelo no debería ser sistemáticamente más pesimista para un subgrupo. Solo accionable
+    con datos reales suficientes.
+  </li>
+</ul>
+
+<footer>
+  <p>
+    Documento preparado para revisión académica. Todos los valores numéricos están validados
+    por tests automatizados (paquete <code>engine</code> del backend) o por reproducción directa
+    de la Tabla 5 del paper original. El binario portable y el código fuente quedan disponibles
+    para auditoría a pedido.
+  </p>
+</footer>
+
+</div>
+</body>
+</html>

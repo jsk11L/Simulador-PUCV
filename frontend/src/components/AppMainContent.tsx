@@ -138,7 +138,7 @@ export default function AppMainContent({
   apiUrl,
   onAbrirMallaGuardada,
 }: AppMainContentProps) {
-  const isMallaCreationView = activeTab === 'wizard' && wizardStep === 1;
+  const isMallaCreationView = (activeTab === 'wizard' && wizardStep === 1) || activeTab === 'crear_malla';
 
   const renderWizardStep = () => {
     if (wizardStep === 1) {
@@ -245,6 +245,64 @@ export default function AppMainContent({
           mallasGuardadas={mallasGuardadas}
           onSelectMalla={onAbrirMallaGuardada}
         />
+      )}
+
+      {activeTab === 'crear_malla' && (
+        <>
+          <div className="mb-4 mt-2 shrink-0 pl-10 lg:pl-0">
+            <h2 className="text-lg sm:text-2xl font-black text-slate-800 text-center">Crear Malla</h2>
+            <p className="text-xs text-slate-500 text-center mt-1">
+              Modo edición pura — la malla se guarda en la biblioteca sin lanzar simulación.
+            </p>
+          </div>
+          <MallaStep
+            mallaSetupMode={mallaSetupMode}
+            malla={malla}
+            totalSemestres={totalSemestres}
+            nombreMalla={nombreMalla}
+            estadoGuardado={estadoGuardado}
+            selectedSubject={selectedSubject}
+            drawerSubject={drawerSubject}
+            mallaErrorMsg={mallaErrorMsg}
+            variables={variables}
+            modeloCalif={modeloCalif}
+            minSemestres={minSemestres}
+            maxSemestres={maxSemestres}
+            fileInputRef={fileInputRef}
+            kanbanScrollRef={kanbanScrollRef}
+            mallaOnlyMode
+            setters={{
+              setMallaSetupMode,
+              setMalla,
+              setTotalSemestres,
+              setCurrentMallaId,
+              setNombreMalla,
+              setEstadoGuardado,
+              setShowMallasGuardadasModal,
+              setSelectedSubject,
+              setDrawerSubject,
+              setVariables,
+              setModeloCalif,
+            }}
+            actions={{
+              handleGuardarMallaClick,
+              handleImportCSV,
+              processCSVFile,
+              scrollKanban,
+              handleKanbanWheel,
+              handleRemoveSemestre,
+              handleAddAsignatura,
+              openDrawer,
+              handleAddReq,
+              handleDrawerReqChange,
+              handleRemoveReq,
+              handleDeleteAsignatura,
+              handleSaveDrawer,
+              handleAddSemestre,
+              validateIntegrityAndNext,
+            }}
+          />
+        </>
       )}
 
       {activeTab === 'resultados_pasados' && <ResultadosPasadosView resultadosPasados={resultadosPasados} />}

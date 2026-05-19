@@ -1,7 +1,8 @@
 import {
-  Activity,
   BarChart,
+  FilePlus,
   FlaskConical,
+  GraduationCap,
   Headphones,
   HelpCircle,
   LayoutGrid,
@@ -27,12 +28,15 @@ interface AppSidebarProps {
   // (no hay usuarios ni sesiones que gestionar). En su lugar aparece el
   // botón "Salir" que apaga el proceso del binario portable.
   standalone?: boolean;
+  hasCrearMallaDraft?: boolean;
   setSidebarOpen: (open: boolean) => void;
   setActiveTab: (tab: ActiveTab) => void;
   fetchAdminUsuarios: () => void;
   handleSidebarNav: (id: ActiveTab) => void;
   handleLogout: () => void;
   handleNewSimulation: () => void;
+  handleCrearMallaNueva: () => void;
+  handleContinuarMalla: () => void;
   handleShutdown?: () => void;
 }
 
@@ -42,18 +46,26 @@ export default function AppSidebar({
   mallaSetupMode,
   isAdmin,
   standalone = false,
+  hasCrearMallaDraft = false,
   setSidebarOpen,
   setActiveTab,
   fetchAdminUsuarios,
   handleSidebarNav,
   handleLogout,
   handleNewSimulation,
+  handleCrearMallaNueva,
+  handleContinuarMalla,
   handleShutdown,
 }: AppSidebarProps) {
   return (
     <aside className={`fixed lg:relative top-0 left-0 h-full w-64 bg-slate-900 text-white flex flex-col shadow-xl z-40 shrink-0 transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
       <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-        <h1 className="text-xl font-bold flex items-center gap-2"><Activity className="text-blue-400" /> SimulaPUCV</h1>
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <span className="w-8 h-8 rounded-md bg-blue-600 flex items-center justify-center shrink-0">
+            <GraduationCap size={18} className="text-white" />
+          </span>
+          SimulaPUCV
+        </h1>
         <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-slate-400 hover:text-white">
           <X size={20} />
         </button>
@@ -92,6 +104,20 @@ export default function AppSidebar({
 
       <div className="p-4 mt-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Biblioteca</div>
       <nav className="flex-1 px-4 space-y-1">
+        <button
+          onClick={handleCrearMallaNueva}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'crear_malla' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+        >
+          <FilePlus size={18} /> Crear Malla
+        </button>
+        {hasCrearMallaDraft && activeTab !== 'crear_malla' && (
+          <button
+            onClick={handleContinuarMalla}
+            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+          >
+            <Play size={18} /> Continuar Malla
+          </button>
+        )}
         <SidebarNavButton id="mallas" activeTab={activeTab} icon={<LayoutGrid />} label="Mallas Guardadas" onClick={handleSidebarNav} />
         <SidebarNavButton id="ayuda" activeTab={activeTab} icon={<HelpCircle />} label="Ayuda" onClick={handleSidebarNav} />
         <SidebarNavButton id="soporte" activeTab={activeTab} icon={<Headphones />} label="Soporte" onClick={handleSidebarNav} />

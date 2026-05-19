@@ -104,9 +104,7 @@ export default function SoporteView() {
           </h4>
           <p className="text-sm text-amber-800 leading-relaxed">
             La conexión con la API oficial de la PUCV (para cargar historiales reales
-            automáticamente) está <strong>pendiente y fuera de mi control</strong> — depende de
-            convenios institucionales. Mientras tanto, puede cargar datos manualmente vía CSV o
-            JSON (ver pestaña <em>Ayuda → Formato CSV de Historial</em>).
+            automáticamente) está pendiente.
           </p>
         </section>
 

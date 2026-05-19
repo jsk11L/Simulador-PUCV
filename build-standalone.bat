@@ -33,20 +33,28 @@ echo.
 echo [3/4] Compilando binario standalone (sin consola)...
 cd backend
 call go mod tidy || goto :err
+REM Regenerar resource.syso para que el .exe lleve el icono custom.
+REM Si goversioninfo no está instalado se omite y sigue con icono
+REM genérico de Go.
+where goversioninfo >nul 2>&1 && (
+  goversioninfo -o resource.syso versioninfo.json
+) || (
+  echo Aviso: goversioninfo no instalado, el .exe sale sin icono custom.
+)
 REM -H=windowsgui evita que Windows abra una ventana de consola al
 REM ejecutar el .exe. Los logs van a %USERPROFILE%\.simulapucv\log.txt
 REM (ver setupStandaloneLogging en main.go).
-call go build -ldflags="-s -w -H=windowsgui" -o ..\simula.exe . || goto :err
+call go build -ldflags="-s -w -H=windowsgui" -o ..\SimulaPUCV.exe . || goto :err
 cd ..
 
 echo.
-echo [4/4] Listo. Ejecutable: simula.exe
+echo [4/4] Listo. Ejecutable: SimulaPUCV.exe
 echo.
-dir simula.exe | findstr simula.exe
+dir SimulaPUCV.exe | findstr SimulaPUCV.exe
 
 echo.
 echo ============================================================
-echo Para probar:  simula.exe
+echo Para probar:  SimulaPUCV.exe
 echo Abrirá automáticamente http://localhost:8080
 echo BD local en:  %%USERPROFILE%%\.simulapucv\datos.db
 echo ============================================================

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
 } from 'lucide-react';
-import type { AdminUsuario, MallaGuardada, MallaGuardadaApi, ResultadoPasado } from './types';
+import type { AdminUsuario, Asignatura, MallaGuardada, MallaGuardadaApi, ResultadoPasado } from './types';
 import ValidationErrorsModal from './components/ValidationErrorsModal';
 import GuardarMallaModal from './components/GuardarMallaModal';
 import MallasGuardadasModal from './components/MallasGuardadasModal';
@@ -26,6 +26,10 @@ export default function App() {
   // ESTADOS PRINCIPALES DE NAVEGACIÓN
   // ==========================================
   const [resultadosPasados, setResultadosPasados] = useState<ResultadoPasado[]>([]);
+  // appCerrada: en modo portable, tras pulsar "Salir de SimulaPUCV", la
+  // UI queda bloqueada con una pantalla full-screen. El backend ya hizo
+  // os.Exit, así que cualquier interacción sería engañosa.
+  const [appCerrada, setAppCerrada] = useState(false);
 
   const {
     wizardStep,
@@ -126,6 +130,111 @@ export default function App() {
     setSidebarOpen(false);
   };
 
+  // ==========================================
+  // SNAPSHOTS WIZARD ↔ CREAR_MALLA
+  // ==========================================
+  // El editor de malla del Wizard y el de "Crear Malla" comparten los
+  // mismos states (malla, totalSemestres, etc.) — usar uno pisaría el
+  // draft del otro. Solución: snapshots por tab. Al cambiar de activeTab
+  // entre 'wizard' y 'crear_malla', guardamos el draft saliente y
+  // restauramos el entrante.
+  type MallaDraft = {
+    malla: Asignatura[];
+    totalSemestres: number;
+    nombreMalla: string;
+    mallaSetupMode: string | null;
+    currentMallaId: string | null;
+    estadoGuardado: 'SIN GUARDAR' | 'GUARDADO';
+  };
+  const [crearMallaSnapshot, setCrearMallaSnapshot] = useState<MallaDraft | null>(null);
+  const [wizardSnapshot, setWizardSnapshot] = useState<MallaDraft | null>(null);
+  const previousTabRef = useRef<typeof activeTab | null>(null);
+
+  const snapshotActual = (): MallaDraft => ({
+    malla,
+    totalSemestres,
+    nombreMalla,
+    mallaSetupMode,
+    currentMallaId,
+    estadoGuardado,
+  });
+
+  const restaurarDraft = (d: MallaDraft) => {
+    setMalla(d.malla);
+    setTotalSemestres(d.totalSemestres);
+    setNombreMalla(d.nombreMalla);
+    setMallaSetupMode(d.mallaSetupMode);
+    setCurrentMallaId(d.currentMallaId);
+    setEstadoGuardado(d.estadoGuardado);
+  };
+
+  const draftEnBlanco = (): MallaDraft => ({
+    malla: [],
+    totalSemestres: MIN_SEMESTRES,
+    nombreMalla: 'Nueva Malla',
+    // null muestra el menú de selección (plantilla / CSV / malla
+    // guardada / hoja en blanco) en lugar de un kanban vacío directo.
+    mallaSetupMode: null,
+    currentMallaId: null,
+    estadoGuardado: 'SIN GUARDAR',
+  });
+
+  useEffect(() => {
+    const prev = previousTabRef.current;
+    previousTabRef.current = activeTab;
+    if (prev === activeTab) return;
+
+    const wasOnCrearMalla = prev === 'crear_malla';
+    const goingToCrearMalla = activeTab === 'crear_malla';
+
+    if (wasOnCrearMalla && !goingToCrearMalla) {
+      // Salida de crear_malla → guardar su draft + restaurar wizard.
+      setCrearMallaSnapshot(snapshotActual());
+      if (wizardSnapshot) {
+        restaurarDraft(wizardSnapshot);
+      } else {
+        restaurarDraft({
+          malla: [],
+          totalSemestres: MIN_SEMESTRES,
+          nombreMalla: 'Plan de Estudios (Base)',
+          mallaSetupMode: null,
+          currentMallaId: null,
+          estadoGuardado: 'SIN GUARDAR',
+        });
+      }
+    } else if (!wasOnCrearMalla && goingToCrearMalla) {
+      // Entrada a crear_malla → guardar wizard + cargar draft de crear_malla.
+      setWizardSnapshot(snapshotActual());
+      restaurarDraft(crearMallaSnapshot ?? draftEnBlanco());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  const hasCrearMallaDraft = Boolean(
+    (activeTab !== 'crear_malla' && crearMallaSnapshot && crearMallaSnapshot.malla.length > 0)
+      || (activeTab === 'crear_malla' && malla.length > 0)
+  );
+
+  // "Crear Malla" del sidebar: descarta cualquier draft previo y empieza
+  // limpio. Si está editando algo, pide confirmación.
+  const handleCrearMallaNueva = () => {
+    if (hasCrearMallaDraft) {
+      const ok = window.confirm('Hay una malla en construcción guardada. ¿Descartarla y empezar una nueva?');
+      if (!ok) return;
+    }
+    // Tirar snapshot previo y arrancar blank en la nueva navegación.
+    setCrearMallaSnapshot(null);
+    setActiveTab('crear_malla');
+    setSidebarOpen(false);
+  };
+
+  // "Continuar Malla" del sidebar: solo navega; el useEffect restaura
+  // el snapshot existente.
+  const handleContinuarMalla = () => {
+    setActiveTab('crear_malla');
+    setSidebarOpen(false);
+  };
+
   const {
     isAuthenticated,
     isAdmin,
@@ -223,12 +332,14 @@ export default function App() {
     fileInputRef.current?.click();
   };
 
-  // Abre una malla guardada desde la vista de "Mis Mallas": carga al
-  // editor del wizard (paso 1) y navega allí.
+  // Abre una malla guardada desde la vista de "Mis Mallas". La lleva al
+  // editor en modo "solo malla" para que el usuario pueda modificar y
+  // guardar SIN que la edición dispare una simulación al avanzar
+  // accidentalmente. Si después quiere simular sobre esa malla, usa
+  // Nueva Simulación y la carga desde el wizard.
   const handleAbrirMallaGuardada = (malla: MallaGuardada) => {
     loadMallaGuardada(malla);
-    setActiveTab('wizard');
-    setWizardStep(1);
+    setActiveTab('crear_malla');
     setSidebarOpen(false);
   };
 
@@ -263,6 +374,25 @@ export default function App() {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-600 text-sm">
         Cargando SimulaPUCV...
+      </div>
+    );
+  }
+
+  if (appCerrada) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-900 text-slate-100 p-8">
+        <div className="max-w-md text-center">
+          <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-3xl">
+            ⏻
+          </div>
+          <h1 className="text-2xl font-bold mb-3">SimulaPUCV se ha cerrado</h1>
+          <p className="text-sm text-slate-400 leading-relaxed mb-6">
+            El proceso fue detenido correctamente. Puede cerrar esta pestaña del navegador.
+          </p>
+          <p className="text-xs text-slate-500">
+            Para volver a usar la aplicación, vuelva a ejecutar <code className="bg-slate-800 px-2 py-0.5 rounded text-slate-300">SimulaPUCV.exe</code>.
+          </p>
+        </div>
       </div>
     );
   }
@@ -327,10 +457,10 @@ export default function App() {
   // ==========================================
   // APAGAR EL BINARIO PORTABLE
   // ==========================================
-  // Pide al backend /api/shutdown, que llama a os.Exit en una goroutine.
-  // Después muestra un mensaje al usuario porque la pestaña no puede
-  // cerrarse a sí misma (window.close solo funciona si fue abierta por
-  // script). El profesor tiene que cerrar la pestaña manualmente.
+  // Pide al backend /api/shutdown (os.Exit en goroutine) y bloquea la UI
+  // con una pantalla full-screen que el usuario no puede esquivar — sin
+  // backend, navegar es engañoso (los datos no se persisten).
+  // (appCerrada se declara arriba con los demás estados.)
   const handleShutdown = async () => {
     const ok = window.confirm('¿Cerrar SimulaPUCV? Se detendrá el proceso y deberá iniciar la aplicación nuevamente para usarla.');
     if (!ok) return;
@@ -339,9 +469,7 @@ export default function App() {
     } catch {
       // Esperado: el server se apaga en medio de la respuesta.
     }
-    setTimeout(() => {
-      alert('SimulaPUCV se ha cerrado. Puede cerrar esta pestaña del navegador.');
-    }, 300);
+    setAppCerrada(true);
   };
 
   // ==========================================
@@ -396,12 +524,15 @@ export default function App() {
         mallaSetupMode={mallaSetupMode}
         isAdmin={isAdmin && !standalone}
         standalone={standalone}
+        hasCrearMallaDraft={hasCrearMallaDraft}
         setSidebarOpen={setSidebarOpen}
         setActiveTab={setActiveTab}
         fetchAdminUsuarios={fetchAdminUsuarios}
         handleSidebarNav={handleSidebarNav}
         handleLogout={handleLogout}
         handleNewSimulation={handleNewSimulation}
+        handleCrearMallaNueva={handleCrearMallaNueva}
+        handleContinuarMalla={handleContinuarMalla}
         handleShutdown={handleShutdown}
       />
 

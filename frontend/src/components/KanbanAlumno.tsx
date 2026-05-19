@@ -1,4 +1,12 @@
-import type { EstadoSubject, SemesterRecord, StudentHistory, SubjectRecord } from '../types';
+import { AlertTriangle, Ban, GraduationCap, XCircle } from 'lucide-react';
+import type {
+  EstadoSubject,
+  EstadoTrayectoria,
+  RamoProbabilidad,
+  SemesterRecord,
+  StudentHistory,
+  SubjectRecord,
+} from '../types';
 
 // ==========================================
 // KANBAN DEL ALUMNO
@@ -33,6 +41,26 @@ interface Props {
    * para combinar historial + futuro proyectado en el mismo kanban.
    */
   proyectadoDesdeIdx?: number;
+  /**
+   * Probabilidades de aprobación por ramo agregadas sobre las
+   * iteraciones del motor de proyección. Si se pasan, las cards de los
+   * semestres PROYECTADOS se renderizan como mapa de calor (% aprobación
+   * + color verde/amarillo/naranja/rojo). Los semestres del historial
+   * real siguen mostrando nota numérica + colores binarios.
+   */
+  probabilidadesPorRamo?: RamoProbabilidad[];
+  /**
+   * Tasas finales de la proyección (titulación, eliminaciones). Si se
+   * pasan y el alumno está activo (sin cerrar), el banner de cierre
+   * cambia su color y texto al resultado más probable: verde si más
+   * iteraciones titulan, ámbar si más se eliminan por TAmin, rojo si
+   * más se eliminan por oportunidades.
+   */
+  prediccionTasas?: {
+    titulacion: number;
+    eliminadoTamin: number;
+    eliminadoOpor: number;
+  };
 }
 
 export default function KanbanAlumno({
@@ -41,9 +69,17 @@ export default function KanbanAlumno({
   alumnoLabel,
   sublabel,
   proyectadoDesdeIdx,
+  probabilidadesPorRamo,
+  prediccionTasas,
 }: Props) {
   const semestres = alumno.semestres ?? [];
   const totalCursos = semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
+
+  // Lookup rápido sigla → prob_aprobar para las cards proyectadas. null
+  // si no se proveen probabilidades (modo binario sin mapa de calor).
+  const probPorSigla = probabilidadesPorRamo
+    ? new Map(probabilidadesPorRamo.map((r) => [r.sigla, r.prob_aprobar]))
+    : null;
 
   if (totalCursos === 0) {
     return (
@@ -67,7 +103,7 @@ export default function KanbanAlumno({
         </div>
       )}
       {proyectadoDesdeIdx !== undefined && proyectadoDesdeIdx < semestres.length && (
-        <div className="flex items-center gap-4 mb-3 text-xs">
+        <div className="flex items-center gap-3 mb-3 text-xs flex-wrap">
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-slate-100 border border-slate-300"></span>
             <span className="text-slate-600">Historial real</span>
@@ -76,6 +112,28 @@ export default function KanbanAlumno({
             <span className="w-3 h-3 rounded bg-violet-50 border border-dashed border-violet-400"></span>
             <span className="text-slate-600">Proyección Montecarlo</span>
           </span>
+          {probabilidadesPorRamo && probabilidadesPorRamo.length > 0 && (
+            <>
+              <span className="text-slate-300">·</span>
+              <span className="text-slate-600 mr-1">Prob. aprobar:</span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-emerald-50 border-l-4 border-emerald-500"></span>
+                <span className="text-slate-600">≥70%</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-yellow-50 border-l-4 border-yellow-500"></span>
+                <span className="text-slate-600">50-70%</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-orange-50 border-l-4 border-orange-500"></span>
+                <span className="text-slate-600">30-50%</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-red-50 border-l-4 border-red-600"></span>
+                <span className="text-slate-600">&lt;30%</span>
+              </span>
+            </>
+          )}
         </div>
       )}
       <div className="overflow-x-auto -mx-1 pb-2">
@@ -88,11 +146,183 @@ export default function KanbanAlumno({
                 key={`${sem.periodo}-${semIdx}`}
                 sem={sem}
                 proyectado={proyectado}
+                probPorSigla={proyectado ? probPorSigla : null}
                 onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
               />
             );
           })}
         </div>
+      </div>
+
+      <EstadoFinalBanner alumno={alumno} prediccionTasas={prediccionTasas} />
+    </div>
+  );
+}
+
+// EstadoFinalBanner renderiza un cartel al pie del kanban con el cierre
+// académico del alumno. Para titulados/eliminados muestra el cierre real
+// del historial. Para alumnos activos (sin cerrar) con proyección
+// disponible, usa el resultado más probable de las iteraciones (verde si
+// la mayoría se titula, ámbar si la mayoría se elimina por TAmin, rojo
+// si la mayoría se elimina por oportunidades). Sin proyección, muestra
+// un banner gris neutro "En curso".
+function EstadoFinalBanner({
+  alumno,
+  prediccionTasas,
+}: {
+  alumno: StudentHistory;
+  prediccionTasas?: { titulacion: number; eliminadoTamin: number; eliminadoOpor: number };
+}) {
+  const semestres = alumno.semestres ?? [];
+  if (semestres.length === 0) return null;
+
+  const estadoOriginal = (alumno.estado ?? 'activa') as EstadoTrayectoria;
+  const ultimoSem = semestres[semestres.length - 1];
+  const periodoFinal = ultimoSem?.periodo ?? '—';
+  const semNumero = semestres.length;
+
+  let creditosAprobados = 0;
+  let totalCursos = 0;
+  for (const s of semestres) {
+    for (const c of s.cursos ?? []) {
+      totalCursos++;
+      if (c.estado === 'aprobado') creditosAprobados += c.creditos;
+    }
+  }
+
+  // Para alumnos activos con proyección: el banner refleja el resultado
+  // más probable (mayor tasa) y muestra el porcentaje.
+  if (estadoOriginal === 'activa' && prediccionTasas) {
+    const t = prediccionTasas;
+    const max = Math.max(t.titulacion, t.eliminadoTamin, t.eliminadoOpor);
+    if (max <= 0) {
+      return (
+        <div className="mt-4 flex items-center gap-3 p-4 rounded-xl border-2 bg-slate-50 border-slate-300">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-slate-500 text-white">
+            <Ban size={28} />
+          </div>
+          <div className="min-w-0">
+            <div className="font-bold text-base text-slate-900">En curso</div>
+            <div className="text-sm mt-0.5 text-slate-700">
+              Último período {periodoFinal} · {semNumero} semestres · proyección sin tasas determinadas.
+            </div>
+          </div>
+        </div>
+      );
+    }
+    let cfg: {
+      bg: string;
+      iconBg: string;
+      title: string;
+      sub: string;
+      icon: React.ReactNode;
+      titulo: string;
+      subtitulo: string;
+    };
+    if (max === t.titulacion) {
+      cfg = {
+        bg: 'bg-emerald-50 border-emerald-300',
+        iconBg: 'bg-emerald-500 text-white',
+        title: 'text-emerald-900',
+        sub: 'text-emerald-700',
+        icon: <GraduationCap size={28} />,
+        titulo: `Se titula en ${(t.titulacion * 100).toFixed(1)}% de los casos`,
+        subtitulo: `${(t.eliminadoTamin * 100).toFixed(1)}% se elimina por TAmin · ${(t.eliminadoOpor * 100).toFixed(1)}% por oportunidades · ${creditosAprobados} créditos al día.`,
+      };
+    } else if (max === t.eliminadoTamin) {
+      cfg = {
+        bg: 'bg-amber-50 border-amber-300',
+        iconBg: 'bg-amber-500 text-white',
+        title: 'text-amber-900',
+        sub: 'text-amber-700',
+        icon: <AlertTriangle size={28} />,
+        titulo: `Se elimina por TAmin en ${(t.eliminadoTamin * 100).toFixed(1)}% de los casos`,
+        subtitulo: `${(t.titulacion * 100).toFixed(1)}% logra titularse · ${(t.eliminadoOpor * 100).toFixed(1)}% se elimina por oportunidades.`,
+      };
+    } else {
+      cfg = {
+        bg: 'bg-red-50 border-red-300',
+        iconBg: 'bg-red-500 text-white',
+        title: 'text-red-900',
+        sub: 'text-red-700',
+        icon: <XCircle size={28} />,
+        titulo: `Se elimina por oportunidades en ${(t.eliminadoOpor * 100).toFixed(1)}% de los casos`,
+        subtitulo: `${(t.titulacion * 100).toFixed(1)}% logra titularse · ${(t.eliminadoTamin * 100).toFixed(1)}% se elimina por TAmin.`,
+      };
+    }
+    return (
+      <div className={`mt-4 flex items-center gap-3 p-4 rounded-xl border-2 ${cfg.bg}`}>
+        <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${cfg.iconBg}`}>
+          {cfg.icon}
+        </div>
+        <div className="min-w-0">
+          <div className={`font-bold text-base ${cfg.title}`}>{cfg.titulo}</div>
+          <div className={`text-sm mt-0.5 ${cfg.sub}`}>{cfg.subtitulo}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const estado = estadoOriginal;
+
+  const config = {
+    titulado: {
+      bg: 'bg-emerald-50 border-emerald-300',
+      iconBg: 'bg-emerald-500 text-white',
+      title: 'text-emerald-900',
+      sub: 'text-emerald-700',
+      icon: <GraduationCap size={28} />,
+      titulo: 'Alumno titulado',
+      subtitulo: `Cierre en ${periodoFinal} · ${semNumero} semestres · ${creditosAprobados} créditos aprobados`,
+    },
+    eliminado_tamin: {
+      bg: 'bg-amber-50 border-amber-300',
+      iconBg: 'bg-amber-500 text-white',
+      title: 'text-amber-900',
+      sub: 'text-amber-700',
+      icon: <AlertTriangle size={28} />,
+      titulo: 'Eliminación por avance académico (TAmin)',
+      subtitulo: `Cierre en ${periodoFinal} · ${semNumero} semestres cursados · ${creditosAprobados} créditos aprobados de ${totalCursos} ramos intentados`,
+    },
+    eliminado_opor: {
+      bg: 'bg-red-50 border-red-300',
+      iconBg: 'bg-red-500 text-white',
+      title: 'text-red-900',
+      sub: 'text-red-700',
+      icon: <XCircle size={28} />,
+      titulo: 'Eliminación por oportunidades agotadas',
+      subtitulo: `Cierre en ${periodoFinal} · ${semNumero} semestres cursados · un ramo alcanzó el tope de reprobaciones`,
+    },
+    activa: {
+      bg: 'bg-slate-50 border-slate-300',
+      iconBg: 'bg-slate-500 text-white',
+      title: 'text-slate-900',
+      sub: 'text-slate-700',
+      icon: <Ban size={28} />,
+      titulo: 'En curso · calculando proyección',
+      subtitulo: `Último período ${periodoFinal} · ${semNumero} semestres · ${creditosAprobados} créditos aprobados. El resultado más probable aparecerá cuando termine la proyección.`,
+    },
+    '': {
+      bg: 'bg-slate-50 border-slate-300',
+      iconBg: 'bg-slate-500 text-white',
+      title: 'text-slate-900',
+      sub: 'text-slate-700',
+      icon: <Ban size={28} />,
+      titulo: 'Estado desconocido',
+      subtitulo: `Último período ${periodoFinal} · ${semNumero} semestres cargados.`,
+    },
+  }[estado];
+
+  if (!config) return null;
+
+  return (
+    <div className={`mt-4 flex items-center gap-3 p-4 rounded-xl border-2 ${config.bg}`}>
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${config.iconBg}`}>
+        {config.icon}
+      </div>
+      <div className="min-w-0">
+        <div className={`font-bold text-base ${config.title}`}>{config.titulo}</div>
+        <div className={`text-sm mt-0.5 ${config.sub}`}>{config.subtitulo}</div>
       </div>
     </div>
   );
@@ -101,10 +331,12 @@ export default function KanbanAlumno({
 function SemesterColumn({
   sem,
   proyectado,
+  probPorSigla,
   onClickRamo,
 }: {
   sem: SemesterRecord;
   proyectado?: boolean;
+  probPorSigla?: Map<string, number> | null;
   onClickRamo?: (curso: SubjectRecord, idx: number) => void;
 }) {
   const cursos = sem.cursos ?? [];
@@ -157,6 +389,7 @@ function SemesterColumn({
           <CursoCard
             key={`${c.sigla}-${idx}`}
             curso={c}
+            probAprobar={probPorSigla?.get(c.sigla)}
             onClick={onClickRamo ? () => onClickRamo(c, idx) : undefined}
           />
         ))}
@@ -167,12 +400,18 @@ function SemesterColumn({
 
 function CursoCard({
   curso,
+  probAprobar,
   onClick,
 }: {
   curso: SubjectRecord;
+  // Si se pasa, la card se renderiza como mapa de calor: color y label
+  // derivados del % de aprobación en lugar del estado binario. Se aplica
+  // solo a semestres proyectados (KanbanAlumno controla la propagación).
+  probAprobar?: number;
   onClick?: () => void;
 }) {
-  const styles = estadoStyles(curso.estado);
+  const heat = typeof probAprobar === 'number' ? heatmapStyles(probAprobar) : null;
+  const styles = heat ?? estadoStyles(curso.estado);
   const Tag = onClick ? 'button' : 'div';
 
   return (
@@ -192,16 +431,27 @@ function CursoCard({
           {curso.creditos} cr
         </span>
       </div>
-      <div className="flex items-baseline justify-between mt-1">
-        <span className={`text-[10px] uppercase tracking-wide font-semibold ${styles.tag}`}>
-          {estadoLabel(curso.estado)}
-        </span>
-        {(curso.nota ?? 0) > 0 && (
-          <span className={`text-sm font-black tabular-nums ${styles.text}`}>
-            {(curso.nota ?? 0).toFixed(1)}
+      {heat ? (
+        <div className="flex items-baseline justify-between mt-1">
+          <span className={`text-[10px] uppercase tracking-wide font-semibold ${styles.tag}`}>
+            P. aprobar
           </span>
-        )}
-      </div>
+          <span className={`text-sm font-black tabular-nums ${styles.text}`}>
+            {(probAprobar! * 100).toFixed(0)}%
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-baseline justify-between mt-1">
+          <span className={`text-[10px] uppercase tracking-wide font-semibold ${styles.tag}`}>
+            {estadoLabel(curso.estado)}
+          </span>
+          {(curso.nota ?? 0) > 0 && (
+            <span className={`text-sm font-black tabular-nums ${styles.text}`}>
+              {(curso.nota ?? 0).toFixed(1)}
+            </span>
+          )}
+        </div>
+      )}
       {curso.categoria && curso.categoria !== 'obligatoria' && (
         <div className="mt-1 text-[9px] uppercase tracking-wide text-slate-500 font-semibold">
           {curso.categoria}
@@ -209,6 +459,49 @@ function CursoCard({
       )}
     </Tag>
   );
+}
+
+// heatmapStyles devuelve los colores de la card según el % de
+// aprobación. Cuatro tramos: verde (≥70), amarillo (50-70), naranja
+// (30-50), rojo (<30). El gradiente comunica de un vistazo qué ramos
+// proyectados son "seguros" vs "riesgosos".
+function heatmapStyles(prob: number): {
+  bg: string;
+  border: string;
+  text: string;
+  tag: string;
+} {
+  const p = Math.max(0, Math.min(1, prob));
+  if (p >= 0.7) {
+    return {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-500',
+      text: 'text-emerald-900',
+      tag: 'text-emerald-700',
+    };
+  }
+  if (p >= 0.5) {
+    return {
+      bg: 'bg-yellow-50',
+      border: 'border-yellow-500',
+      text: 'text-yellow-900',
+      tag: 'text-yellow-700',
+    };
+  }
+  if (p >= 0.3) {
+    return {
+      bg: 'bg-orange-50',
+      border: 'border-orange-500',
+      text: 'text-orange-900',
+      tag: 'text-orange-700',
+    };
+  }
+  return {
+    bg: 'bg-red-50',
+    border: 'border-red-600',
+    text: 'text-red-900',
+    tag: 'text-red-700',
+  };
 }
 
 function estadoStyles(estado: EstadoSubject): {

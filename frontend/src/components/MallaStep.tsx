@@ -62,6 +62,10 @@ interface MallaStepProps {
   modeloCalif: ModeloCalificaciones;
   minSemestres: number;
   maxSemestres: number;
+  // mallaOnlyMode: cuando es true, el componente actúa como editor puro
+  // de mallas (sin botón "Continuar a la siguiente fase"). Se usa para
+  // la entrada "Crear Malla" del sidebar, que no debe disparar simulación.
+  mallaOnlyMode?: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   kanbanScrollRef: RefObject<HTMLDivElement | null>;
   setters: {
@@ -113,6 +117,7 @@ export default function MallaStep({
   kanbanScrollRef,
   setters,
   actions,
+  mallaOnlyMode = false,
 }: MallaStepProps) {
   const {
     setMallaSetupMode,
@@ -557,7 +562,7 @@ export default function MallaStep({
         )}
       </div>
 
-      <KanbanBottomCta onContinue={validateIntegrityAndNext} />
+      {!mallaOnlyMode && <KanbanBottomCta onContinue={validateIntegrityAndNext} />}
     </div>
   );
 }

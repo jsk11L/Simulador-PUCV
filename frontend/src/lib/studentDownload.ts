@@ -41,6 +41,62 @@ export function historiaCSV(alumno: StudentHistory): string {
   return lines.join('\n');
 }
 
+/**
+ * Genera un resumen legible del alumno con el estado final de su
+ * trayectoria (titulado / eliminado_*), el período de cierre, conteos
+ * por estado y créditos aprobados. Va al ZIP como archivo aparte para
+ * no romper la estructura tabular del CSV de trayectoria.
+ */
+export function resumenAlumnoTXT(alumno: StudentHistory, displayId: string): string {
+  const sems = alumno.semestres ?? [];
+  let aprobados = 0;
+  let reprobados = 0;
+  let enCurso = 0;
+  let abandonados = 0;
+  let credAprob = 0;
+  for (const s of sems) {
+    for (const c of s.cursos ?? []) {
+      if (c.estado === 'aprobado') {
+        aprobados++;
+        credAprob += c.creditos;
+      } else if (c.estado === 'reprobado') {
+        reprobados++;
+      } else if (c.estado === 'en_curso') {
+        enCurso++;
+      } else if (c.estado === 'abandonado') {
+        abandonados++;
+      }
+    }
+  }
+  const ultimo = sems[sems.length - 1];
+  const periodoFinal = ultimo?.periodo ?? '—';
+  const estadoLegible = labelEstadoTrayectoria(alumno.estado);
+
+  return [
+    'SimulaPUCV — Resumen del alumno',
+    '================================',
+    `ID alumno          : ${displayId}`,
+    `Estado final       : ${estadoLegible}`,
+    `Período de cierre  : ${periodoFinal}`,
+    `Semestres cursados : ${sems.length}`,
+    `Créditos aprobados : ${credAprob}`,
+    `Ramos aprobados    : ${aprobados}`,
+    `Ramos reprobados   : ${reprobados}`,
+    `Ramos en curso     : ${enCurso}`,
+    `Ramos abandonados  : ${abandonados}`,
+  ].join('\n');
+}
+
+function labelEstadoTrayectoria(estado: string | undefined): string {
+  switch (estado) {
+    case 'titulado': return 'Titulado';
+    case 'eliminado_tamin': return 'Eliminado por avance académico (TAmin)';
+    case 'eliminado_opor': return 'Eliminado por oportunidades agotadas';
+    case 'activa': return 'Sin cerrar (alumno activo)';
+    default: return estado || 'Desconocido';
+  }
+}
+
 /** Genera el CSV resumen de una cohorte (una fila por alumno). */
 export function cohorteResumenCSV(
   alumnos: Array<{ displayId: string } & StudentHistory>,
@@ -95,6 +151,7 @@ export async function descargarAlumno(
   const zip = new JSZip();
   const sanitized = sanitizeForFilename(displayId);
 
+  zip.file(`${sanitized}_resumen.txt`, resumenAlumnoTXT(alumno, displayId));
   zip.file(`${sanitized}_historial.json`, JSON.stringify(alumno, null, 2));
   zip.file(`${sanitized}_trayectoria.csv`, historiaCSV(alumno));
   if (prediccion) {
@@ -125,6 +182,7 @@ export async function descargarCohorte(
     const safe = sanitizeForFilename(a.displayId);
     folder.file(`${safe}.json`, JSON.stringify(a, null, 2));
     folder.file(`${safe}.csv`, historiaCSV(a));
+    folder.file(`${safe}_resumen.txt`, resumenAlumnoTXT(a, a.displayId));
   }
 
   const blob = await zip.generateAsync({ type: 'blob' });
