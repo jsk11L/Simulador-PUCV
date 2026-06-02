@@ -43,7 +43,16 @@ export default function useMallaEditorActions({
 
   const handleRemoveSemestre = (semToRemove: number) => {
     if (semToRemove === totalSemestres && semToRemove > minSemestres) {
-      setMalla((prev) => prev.filter((a) => a.semestre !== semToRemove));
+      setMalla((prev) => {
+        // Quitar las asignaturas del semestre y, además, limpiar cualquier
+        // prerequisito que apuntara a ellas para no dejar reqs colgando.
+        const removidas = new Set(
+          prev.filter((a) => a.semestre === semToRemove).map((a) => a.id),
+        );
+        return prev
+          .filter((a) => a.semestre !== semToRemove)
+          .map((a) => ({ ...a, reqs: a.reqs.filter((r) => !removidas.has(r)) }));
+      });
       setTotalSemestres((prev) => prev - 1);
       markDirty();
     }
@@ -104,13 +113,17 @@ export default function useMallaEditorActions({
       return;
     }
 
-    const newMalla = malla.map((a) => (a.id === selectedSubject.id ? drawerSubject : a));
-
-    if (drawerSubject.id !== selectedSubject.id) {
-      newMalla.forEach((asig) => {
-        asig.reqs = asig.reqs.map((r) => (r === selectedSubject.id ? drawerSubject.id : r));
-      });
-    }
+    // Construcción INMUTABLE: si cambió la sigla, propagamos el rename a los
+    // reqs sin mutar los objetos del estado anterior (clave en React).
+    const renombrado = drawerSubject.id !== selectedSubject.id;
+    const newMalla = malla.map((a) => {
+      const base = a.id === selectedSubject.id ? drawerSubject : a;
+      if (!renombrado) return base;
+      return {
+        ...base,
+        reqs: base.reqs.map((r) => (r === selectedSubject.id ? drawerSubject.id : r)),
+      };
+    });
 
     setMalla(newMalla);
     markDirty();
@@ -120,10 +133,11 @@ export default function useMallaEditorActions({
 
   const handleDeleteAsignatura = () => {
     if (!selectedSubject) return;
-    const newMalla = malla.filter((a) => a.id !== selectedSubject.id);
-    newMalla.forEach((asig) => {
-      asig.reqs = asig.reqs.filter((r) => r !== selectedSubject.id);
-    });
+    // Inmutable: elimina la asignatura y quita su sigla de los reqs ajenos
+    // sin mutar los objetos previos.
+    const newMalla = malla
+      .filter((a) => a.id !== selectedSubject.id)
+      .map((a) => ({ ...a, reqs: a.reqs.filter((r) => r !== selectedSubject.id) }));
 
     setMalla(newMalla);
     markDirty();

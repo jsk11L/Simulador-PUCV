@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Dices,
@@ -178,6 +178,16 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
   const perfilActual = perfiles.find((p) => p.nombre === perfilSeleccionado);
   const displayId = alumno ? rutToStudentId(alumno.rut) : '';
 
+  // Mapa sigla → prerequisitos para las flechas naranjas del kanban. Solo
+  // disponible cuando la malla activa es una guardada/override (trae las
+  // asignaturas); con escenarios fijos del paper queda null y las flechas
+  // de prerequisito no se dibujan (las rojas de repetición sí).
+  const reqsPorSigla = useMemo(() => {
+    const asigs = mallaOverride?.asignaturas;
+    if (!asigs || asigs.length === 0) return null;
+    return new Map(asigs.map((a) => [a.id, a.reqs ?? []]));
+  }, [mallaOverride]);
+
   // Portable sin mallas guardadas: no hay nada para simular. Mostrar guía
   // amigable en lugar del form que dispararía un error al intentar cargar
   // un escenario inexistente.
@@ -297,6 +307,7 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
                 prediccion ? (alumno.semestres ?? []).length : undefined
               }
               probabilidadesPorRamo={prediccion?.probabilidades_por_ramo}
+              reqsPorSigla={reqsPorSigla}
               prediccionTasas={prediccion ? {
                 titulacion: prediccion.tasa_titulacion,
                 eliminadoTamin: prediccion.tasa_eliminado_tamin,

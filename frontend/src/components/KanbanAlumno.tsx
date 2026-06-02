@@ -1,4 +1,7 @@
-import { AlertTriangle, Ban, GraduationCap, XCircle } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Ban, GitFork, GraduationCap, XCircle } from 'lucide-react';
+import { ordenarPorSigla } from '../lib/sigla';
+import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
 import type {
   EstadoSubject,
   EstadoTrayectoria,
@@ -61,6 +64,13 @@ interface Props {
     eliminadoTamin: number;
     eliminadoOpor: number;
   };
+  /**
+   * Mapa sigla → prerequisitos de la malla. Si se pasa, se habilitan las
+   * flechas naranjas de prerequisito (de un ramo hacia los que abre). Sin
+   * él, solo se dibujan las flechas rojas de repetición (reprobado →
+   * reintento), que no necesitan la malla.
+   */
+  reqsPorSigla?: Map<string, string[]> | null;
 }
 
 export default function KanbanAlumno({
@@ -71,6 +81,7 @@ export default function KanbanAlumno({
   proyectadoDesdeIdx,
   probabilidadesPorRamo,
   prediccionTasas,
+  reqsPorSigla,
 }: Props) {
   const semestres = alumno.semestres ?? [];
   const totalCursos = semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
@@ -80,6 +91,43 @@ export default function KanbanAlumno({
   const probPorSigla = probabilidadesPorRamo
     ? new Map(probabilidadesPorRamo.map((r) => [r.sigla, r.prob_aprobar]))
     : null;
+
+  // Columnas con cards ordenadas por sigla y una clave única por instancia
+  // de ramo. La clave la comparten el render (data-kanban-node) y el
+  // cálculo de aristas, para que las flechas conecten exactamente las cards
+  // visibles.
+  const columnas = useMemo(
+    () =>
+      semestres.map((sem, semIdx) => {
+        const proyectado =
+          proyectadoDesdeIdx !== undefined && semIdx >= proyectadoDesdeIdx;
+        const cursosConKey = ordenarPorSigla(sem.cursos ?? [], (c) => c.sigla).map(
+          (curso, i) => ({ curso, key: `${semIdx}:${i}:${curso.sigla}` }),
+        );
+        return { sem, semIdx, proyectado, cursosConKey };
+      }),
+    [semestres, proyectadoDesdeIdx],
+  );
+
+  const instancias = useMemo<SubjectInstance[]>(() => {
+    const out: SubjectInstance[] = [];
+    for (const col of columnas) {
+      for (const { curso, key } of col.cursosConKey) {
+        out.push({ key, sigla: curso.sigla, semIdx: col.semIdx, estado: curso.estado });
+      }
+    }
+    return out;
+  }, [columnas]);
+
+  const edges = useMemo(
+    () => construirAristas(instancias, reqsPorSigla ?? null),
+    [instancias, reqsPorSigla],
+  );
+  const hayPrereq = edges.some((e) => e.kind === 'prereq');
+  const hayRepeticion = edges.some((e) => e.kind === 'repeat');
+
+  const [mostrarFlechas, setMostrarFlechas] = useState(true);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   if (totalCursos === 0) {
     return (
@@ -136,21 +184,56 @@ export default function KanbanAlumno({
           )}
         </div>
       )}
+      {(hayPrereq || hayRepeticion) && (
+        <div className="flex items-center gap-3 mb-3 text-xs flex-wrap">
+          <button
+            type="button"
+            onClick={() => setMostrarFlechas((v) => !v)}
+            className={[
+              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
+              mostrarFlechas
+                ? 'bg-slate-800 text-white border-slate-800'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
+            ].join(' ')}
+          >
+            <GitFork size={13} />
+            {mostrarFlechas ? 'Ocultar flechas' : 'Mostrar flechas'}
+          </button>
+          {mostrarFlechas && hayPrereq && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-5 h-0.5 rounded bg-orange-500"></span>
+              <span className="text-slate-600">Prerequisito → ramo que abre</span>
+            </span>
+          )}
+          {mostrarFlechas && hayRepeticion && (
+            <span className="flex items-center gap-1.5">
+              <span
+                className="w-5 h-0.5 rounded"
+                style={{ backgroundImage: 'repeating-linear-gradient(90deg,#dc2626 0 4px,transparent 4px 7px)' }}
+              ></span>
+              <span className="text-slate-600">Reprobado → reintento</span>
+            </span>
+          )}
+        </div>
+      )}
       <div className="overflow-x-auto -mx-1 pb-2">
-        <div className="flex gap-3 px-1 min-w-min">
-          {semestres.map((sem, semIdx) => {
-            const proyectado =
-              proyectadoDesdeIdx !== undefined && semIdx >= proyectadoDesdeIdx;
-            return (
-              <SemesterColumn
-                key={`${sem.periodo}-${semIdx}`}
-                sem={sem}
-                proyectado={proyectado}
-                probPorSigla={proyectado ? probPorSigla : null}
-                onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
-              />
-            );
-          })}
+        <div ref={contentRef} className="relative flex gap-3 px-1 min-w-min">
+          {columnas.map(({ sem, semIdx, proyectado, cursosConKey }) => (
+            <SemesterColumn
+              key={`${sem.periodo}-${semIdx}`}
+              sem={sem}
+              cursosConKey={cursosConKey}
+              proyectado={proyectado}
+              probPorSigla={proyectado ? probPorSigla : null}
+              onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
+            />
+          ))}
+          <KanbanArrows
+            contentRef={contentRef}
+            edges={edges}
+            enabled={mostrarFlechas}
+            recomputeKey={instancias}
+          />
         </div>
       </div>
 
@@ -330,21 +413,31 @@ function EstadoFinalBanner({
 
 function SemesterColumn({
   sem,
+  cursosConKey,
   proyectado,
   probPorSigla,
   onClickRamo,
 }: {
   sem: SemesterRecord;
+  cursosConKey: Array<{ curso: SubjectRecord; key: string }>;
   proyectado?: boolean;
   probPorSigla?: Map<string, number> | null;
   onClickRamo?: (curso: SubjectRecord, idx: number) => void;
 }) {
-  const cursos = sem.cursos ?? [];
+  // Las cards ya vienen ordenadas por sigla y con su clave de instancia
+  // desde el padre (compartida con el overlay de flechas).
+  const cursos = cursosConKey.map((x) => x.curso);
   const creditosAprob = cursos
     .filter((c) => c.estado === 'aprobado')
     .reduce((sum, c) => sum + c.creditos, 0);
   const creditosInscritos = cursos.reduce((sum, c) => sum + c.creditos, 0);
-  const ratio = creditosInscritos > 0 ? (creditosAprob / creditosInscritos) : 0;
+  // El color del ratio se basa SOLO en ramos ya evaluados (aprobado /
+  // reprobado). Un semestre 100% "en curso" no debe pintarse rojo por no
+  // tener aprobados todavía. null = sin evaluar aún → color neutro.
+  const creditosEvaluados = cursos
+    .filter((c) => c.estado === 'aprobado' || c.estado === 'reprobado')
+    .reduce((sum, c) => sum + c.creditos, 0);
+  const ratio = creditosEvaluados > 0 ? creditosAprob / creditosEvaluados : null;
 
   return (
     <div
@@ -376,7 +469,7 @@ function SemesterColumn({
           {creditosInscritos > 0 && (
             <>
               {' · '}
-              <span className={ratio === 1 ? 'text-emerald-600 font-semibold' : ratio < 0.5 ? 'text-red-600' : ''}>
+              <span className={ratio === null ? '' : ratio === 1 ? 'text-emerald-600 font-semibold' : ratio < 0.5 ? 'text-red-600' : ''}>
                 {creditosAprob}/{creditosInscritos} cr
               </span>
             </>
@@ -385,9 +478,10 @@ function SemesterColumn({
       </div>
 
       <div className="space-y-2">
-        {cursos.map((c, idx) => (
+        {cursosConKey.map(({ curso: c, key }, idx) => (
           <CursoCard
-            key={`${c.sigla}-${idx}`}
+            key={key}
+            nodeKey={key}
             curso={c}
             probAprobar={probPorSigla?.get(c.sigla)}
             onClick={onClickRamo ? () => onClickRamo(c, idx) : undefined}
@@ -400,10 +494,13 @@ function SemesterColumn({
 
 function CursoCard({
   curso,
+  nodeKey,
   probAprobar,
   onClick,
 }: {
   curso: SubjectRecord;
+  // Clave de instancia para anclar las flechas del overlay.
+  nodeKey: string;
   // Si se pasa, la card se renderiza como mapa de calor: color y label
   // derivados del % de aprobación en lugar del estado binario. Se aplica
   // solo a semestres proyectados (KanbanAlumno controla la propagación).
@@ -416,6 +513,7 @@ function CursoCard({
 
   return (
     <Tag
+      data-kanban-node={nodeKey}
       onClick={onClick}
       type={onClick ? 'button' : undefined}
       className={[
@@ -539,6 +637,15 @@ function estadoStyles(estado: EstadoSubject): {
         text: 'text-slate-700',
         tag: 'text-slate-500',
       };
+    default:
+      // Estado fuera del union (p.ej. JSON importado con datos crudos):
+      // estilo neutro en lugar de devolver undefined y reventar.
+      return {
+        bg: 'bg-slate-100',
+        border: 'border-slate-300',
+        text: 'text-slate-700',
+        tag: 'text-slate-500',
+      };
   }
 }
 
@@ -552,5 +659,7 @@ function estadoLabel(estado: EstadoSubject): string {
       return 'En curso';
     case 'abandonado':
       return 'Abandonado';
+    default:
+      return String(estado || 'Desconocido');
   }
 }

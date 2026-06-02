@@ -1,7 +1,9 @@
-import { FileSpreadsheet, FilePlus, Copy, Search, LayoutGrid, Trash2, X, Save, Settings } from 'lucide-react';
-import { useState, type RefObject, type WheelEventHandler } from 'react';
+import { FileSpreadsheet, FilePlus, Copy, GitFork, Search, LayoutGrid, Trash2, X, Save, Settings } from 'lucide-react';
+import { useMemo, useState, type RefObject, type WheelEventHandler } from 'react';
 import type { Asignatura, ModeloCalificaciones, VariablesSimulacion } from '../types';
 import { ICE_PAPER_BASE_TEMPLATE } from '../constants/icePaperBaseTemplate';
+import { ordenarPorSigla } from '../lib/sigla';
+import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
 import KanbanTopControls from './KanbanTopControls';
 import KanbanBottomCta from './KanbanBottomCta';
 import KanbanAddSemesterCard from './KanbanAddSemesterCard';
@@ -154,6 +156,23 @@ export default function MallaStep({
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [expandedCareer, setExpandedCareer] = useState<string | null>(null);
+  const [mostrarFlechas, setMostrarFlechas] = useState(true);
+
+  // Flechas de prerequisito (naranjas) sobre el editor de malla. En la malla
+  // teórica no hay repeticiones, así que solo aplican las de prerequisito.
+  const reqsPorSigla = useMemo(
+    () => new Map(malla.map((a) => [a.id, a.reqs ?? []])),
+    [malla],
+  );
+  const arrowEdges = useMemo(() => {
+    const instancias: SubjectInstance[] = malla.map((a) => ({
+      key: `${a.semestre}:${a.id}`,
+      sigla: a.id,
+      semIdx: a.semestre,
+    }));
+    return construirAristas(instancias, reqsPorSigla);
+  }, [malla, reqsPorSigla]);
+  const hayFlechas = arrowEdges.length > 0;
 
   const cloneBaseMalla = () => ICE_PAPER_BASE_TEMPLATE.map((a) => ({ ...a, reqs: [...a.reqs] }));
 
@@ -429,17 +448,42 @@ export default function MallaStep({
         </div>
       )}
 
-      <KanbanTopControls onScrollLeft={() => scrollKanban('left')} onScrollRight={() => scrollKanban('right')} />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <KanbanTopControls onScrollLeft={() => scrollKanban('left')} onScrollRight={() => scrollKanban('right')} />
+        {hayFlechas && (
+          <div className="flex items-center gap-3 text-xs flex-wrap">
+            <button
+              type="button"
+              onClick={() => setMostrarFlechas((v) => !v)}
+              className={[
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
+                mostrarFlechas
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              <GitFork size={13} />
+              {mostrarFlechas ? 'Ocultar prerequisitos' : 'Mostrar prerequisitos'}
+            </button>
+            {mostrarFlechas && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 rounded bg-orange-500"></span>
+                <span className="text-slate-600">Prerequisito → ramo que abre</span>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex-1 flex min-h-0 relative">
         <div
           ref={kanbanScrollRef}
           onWheel={handleKanbanWheel}
-          className={`flex gap-3 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x flex-1 min-h-72 max-h-[48vh] sm:max-h-[52vh] pb-4 pr-1 transition-all duration-300 snap-x snap-mandatory ${selectedSubject ? 'sm:pr-90' : ''}`}
+          className={`relative flex gap-3 overflow-x-auto overflow-y-auto overscroll-x-contain touch-pan-x flex-1 min-h-72 max-h-[48vh] sm:max-h-[52vh] pb-4 pr-1 transition-all duration-300 snap-x snap-mandatory ${selectedSubject ? 'sm:pr-90' : ''}`}
         >
           {Array.from({ length: totalSemestres }).map((_, i) => {
             const sem = i + 1;
-            const ramosDelSemestre = malla.filter(a => a.semestre === sem);
+            const ramosDelSemestre = ordenarPorSigla(malla.filter(a => a.semestre === sem), (a) => a.id);
             const canAdd = ramosDelSemestre.length < 10;
 
             return (
@@ -452,7 +496,7 @@ export default function MallaStep({
                 <h4 className="text-center font-bold text-slate-500 mb-4 text-xs uppercase tracking-wider">Semestre {sem}</h4>
                 <div className="space-y-3 pr-1 flex-1">
                   {ramosDelSemestre.map((asig) => (
-                    <div key={asig.id} onClick={() => openDrawer(asig)} className={`bg-white p-3 rounded-lg border-2 shadow-sm transition-colors cursor-pointer group ${selectedSubject?.id === asig.id ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:border-slate-300'}`}>
+                    <div key={asig.id} data-kanban-node={`${asig.semestre}:${asig.id}`} onClick={() => openDrawer(asig)} className={`bg-white p-3 rounded-lg border-2 shadow-sm transition-colors cursor-pointer group ${selectedSubject?.id === asig.id ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:border-slate-300'}`}>
                       <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
                         <div className="font-black text-slate-800 text-lg group-hover:text-blue-700">{asig.id}</div>
                         <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200">{asig.cred} CR</span>
@@ -482,6 +526,12 @@ export default function MallaStep({
             );
           })}
           <KanbanAddSemesterCard totalSemestres={totalSemestres} maxSemestres={maxSemestres} onAddSemestre={handleAddSemestre} />
+          <KanbanArrows
+            contentRef={kanbanScrollRef}
+            edges={arrowEdges}
+            enabled={mostrarFlechas}
+            recomputeKey={arrowEdges}
+          />
         </div>
 
         {selectedSubject && drawerSubject && (

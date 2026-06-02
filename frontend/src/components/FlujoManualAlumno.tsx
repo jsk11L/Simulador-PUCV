@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, FileUp, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Activity, FileUp, GitFork, Loader2, Plus, Trash2, X } from 'lucide-react';
+import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
 import useStudentApi, { type MallaCustomOverride } from '../hooks/useStudentApi';
 import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
 import { parseImported } from '../lib/studentImport';
+import { ordenarPorSigla } from '../lib/sigla';
 import type {
   Asignatura,
   EstadoSubject,
@@ -212,10 +214,30 @@ export default function FlujoManualAlumno({
       if (!map.has(sem)) map.set(sem, []);
       map.get(sem)!.push(a);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+    // Orden natural por sigla dentro de cada semestre y columnas por nº de semestre.
+    return Array.from(map.entries())
+      .map(([sem, ramos]) => [sem, ordenarPorSigla(ramos, (r) => r.id)] as [number, Asignatura[]])
+      .sort((a, b) => a[0] - b[0]);
   }, [asignaturas]);
 
   const totalCursados = alumno.semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
+
+  // Flechas de prerequisito (naranjas) sobre el kanban de la malla.
+  const [mostrarFlechas, setMostrarFlechas] = useState(true);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const reqsPorSigla = useMemo(
+    () => new Map(asignaturas.map((a) => [a.id, a.reqs ?? []])),
+    [asignaturas],
+  );
+  const arrowEdges = useMemo(() => {
+    const instancias: SubjectInstance[] = asignaturas.map((a) => ({
+      key: `${a.semestre}:${a.id}`,
+      sigla: a.id,
+      semIdx: a.semestre,
+    }));
+    return construirAristas(instancias, reqsPorSigla);
+  }, [asignaturas, reqsPorSigla]);
+  const hayFlechas = arrowEdges.length > 0;
 
   return (
     <div className="space-y-4">
@@ -332,13 +354,37 @@ export default function FlujoManualAlumno({
           </div>
         </div>
 
+        {hayFlechas && !loadingMalla && (
+          <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
+            <button
+              type="button"
+              onClick={() => setMostrarFlechas((v) => !v)}
+              className={[
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
+                mostrarFlechas
+                  ? 'bg-slate-800 text-white border-slate-800'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              <GitFork size={13} />
+              {mostrarFlechas ? 'Ocultar prerequisitos' : 'Mostrar prerequisitos'}
+            </button>
+            {mostrarFlechas && (
+              <span className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 rounded bg-orange-500"></span>
+                <span className="text-slate-600">Prerequisito → ramo que abre</span>
+              </span>
+            )}
+          </div>
+        )}
+
         {loadingMalla ? (
           <div className="flex items-center gap-2 text-slate-500 text-sm py-8 justify-center">
             <Loader2 size={16} className="animate-spin" /> Cargando malla...
           </div>
         ) : (
           <div className="overflow-x-auto -mx-1 pb-2">
-            <div className="flex gap-3 px-1 min-w-min">
+            <div ref={contentRef} className="relative flex gap-3 px-1 min-w-min">
               {asignaturasPorSemestre.map(([semNominal, ramos]) => (
                 <MallaSemColumn
                   key={semNominal}
@@ -348,6 +394,12 @@ export default function FlujoManualAlumno({
                   onClickRamo={handleClickRamoMalla}
                 />
               ))}
+              <KanbanArrows
+                contentRef={contentRef}
+                edges={arrowEdges}
+                enabled={mostrarFlechas}
+                recomputeKey={arrowEdges}
+              />
             </div>
           </div>
         )}
@@ -403,6 +455,7 @@ function MallaSemColumn({
           return (
             <button
               key={r.id}
+              data-kanban-node={`${semNominal}:${r.id}`}
               type="button"
               onClick={() => onClickRamo(r)}
               className={[

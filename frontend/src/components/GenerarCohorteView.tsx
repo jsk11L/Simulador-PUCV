@@ -198,6 +198,14 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
     [alumnosConId],
   );
 
+  // Mapa sigla → prerequisitos para las flechas naranjas del kanban del
+  // modal de detalle. null con escenarios fijos del paper (sin override).
+  const reqsPorSigla = useMemo(() => {
+    const asigs = mallaOverride?.asignaturas;
+    if (!asigs || asigs.length === 0) return null;
+    return new Map(asigs.map((a) => [a.id, a.reqs ?? []]));
+  }, [mallaOverride]);
+
   const handleVerDetalle = (idx: number) => {
     const a = alumnosConId[idx];
     setDetalleAlumno(a);
@@ -367,6 +375,7 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
           alumno={detalleAlumno}
           displayId={detalleAlumnoId}
           prediccion={prediccionesPorAlumno[detalleAlumnoId] ?? null}
+          reqsPorSigla={reqsPorSigla}
           onClose={() => setDetalleAlumno(null)}
         />
       )}
@@ -783,6 +792,7 @@ interface DetalleAlumnoModalProps {
   // lectura — no re-proyecta. Si null, significa que la proyección no
   // está disponible (caso raro, p.ej. error de red al generar).
   prediccion: IndividualPrediction | null;
+  reqsPorSigla: Map<string, string[]> | null;
   onClose: () => void;
 }
 
@@ -790,6 +800,7 @@ function DetalleAlumnoModal({
   alumno,
   displayId,
   prediccion,
+  reqsPorSigla,
   onClose,
 }: DetalleAlumnoModalProps) {
   const handleDescargar = async () => {
@@ -845,6 +856,7 @@ function DetalleAlumnoModal({
             alumno={alumnoCombinado}
             proyectadoDesdeIdx={prediccion ? semestresHistorial : undefined}
             probabilidadesPorRamo={prediccion?.probabilidades_por_ramo}
+            reqsPorSigla={reqsPorSigla}
             prediccionTasas={prediccion ? {
               titulacion: prediccion.tasa_titulacion,
               eliminadoTamin: prediccion.tasa_eliminado_tamin,
