@@ -311,9 +311,11 @@ function EstadoFinalBanner({
     }
   }
 
-  // Para alumnos activos con proyección: el banner refleja el resultado
-  // más probable (mayor tasa) y muestra el porcentaje.
-  if (estadoOriginal === 'activa' && prediccionTasas) {
+  // Si hay proyección disponible, el banner SIEMPRE refleja el resultado
+  // más probable (mayor tasa) y su porcentaje — aunque el alumno haya sido
+  // generado con un cierre concreto (caso cohorte: la muestra generada es
+  // una sola realización; lo que importa es la distribución proyectada).
+  if (prediccionTasas) {
     const t = prediccionTasas;
     const max = Math.max(t.titulacion, t.eliminadoTamin, t.eliminadoOpor);
     if (max <= 0) {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Dices, Loader2, Play, RotateCcw, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import useStudentApi, { type BacktestCohorteResponse, type MallaCustomOverride } from '../hooks/useStudentApi';
-import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
+import ScenarioSelector, { type ScenarioSelection, buildProgramacion } from './ScenarioSelector';
 import HelpTip from './HelpTip';
 import type { MallaGuardada, ModifierWeights, StudentProfile } from '../types';
 
@@ -31,11 +31,14 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 
   const [perfiles, setPerfiles] = useState<StudentProfile[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>('promedio');
-  const [escenario, setEscenario] = useState<string>('caso_actual');
+  // Calibración trabaja SOLO sobre mallas guardadas del usuario (no los
+  // escenarios fijos del paper). Arranca vacío y auto-selecciona la primera
+  // malla disponible.
+  const [escenario, setEscenario] = useState<string>('');
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
   const [count, setCount] = useState<number>(20);
   const [iteraciones, setIteraciones] = useState<number>(100);
-  const [seed, setSeed] = useState<number>(20260516);
+  const [seed, setSeed] = useState<number>(() => generarSeedAleatoria());
 
   const [weights, setWeights] = useState<ModifierWeights>(DEFAULT_WEIGHTS);
   const [resultado, setResultado] = useState<BacktestCohorteResponse | null>(null);
@@ -49,6 +52,20 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-seleccionar la primera malla guardada apenas estén disponibles
+  // (no usamos escenarios del paper en calibración).
+  useEffect(() => {
+    if (mallasGuardadas.length === 0) return;
+    if (escenario.startsWith('__malla__')) return;
+    const m = mallasGuardadas[0];
+    setEscenario(`__malla__${m.id}`);
+    setMallaOverride({
+      asignaturas: m.asignaturas,
+      programacion: buildProgramacion(m.asignaturas),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mallasGuardadas]);
 
   const handleSelectScenario = (s: ScenarioSelection) => {
     setEscenario(s.value);
@@ -147,7 +164,10 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 
               <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Perfil de cohorte</label>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                    Perfil de cohorte
+                    <HelpTip side="bottom" text="Preset de 3 rasgos en [0,1] de la cohorte sintética que se usa para evaluar los pesos: Esfuerzo (sube la probabilidad de aprobar), Disciplina (reduce la variabilidad de notas) y Tolerancia (cuánta carga inscribe). Van de 'esforzado_top' a 'en_problemas'; 'promedio' es el centro." />
+                  </label>
                   <select
                     value={perfilSeleccionado}
                     onChange={(e) => setPerfilSeleccionado(e.target.value)}
@@ -164,6 +184,8 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                   value={escenario}
                   onSelect={handleSelectScenario}
                   mallasGuardadas={mallasGuardadas}
+                  label="Malla"
+                  hideFixedScenarios
                 />
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1 block">

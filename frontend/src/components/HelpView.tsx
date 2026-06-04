@@ -15,6 +15,7 @@ import {
   Upload,
   User,
   Users,
+  Waypoints,
 } from 'lucide-react';
 
 /**
@@ -41,7 +42,7 @@ export default function HelpView() {
           <p className="text-slate-600 leading-relaxed">
             SimulaPUCV es una plataforma de <strong>simulación curricular</strong> basada en el
             <strong> Método de Montecarlo</strong>. Permite responder preguntas como: ¿qué pasa con
-            las tasas de titulación si subo TAmin de 50 a 60?, ¿cuántos semestres tarda en promedio
+            las tasas de titulación si subo TAmin de 0.5 a 0.6?, ¿cuántos semestres tarda en promedio
             un alumno con perfil "promedio_bajo"?, ¿qué probabilidad tiene este alumno con su
             historial actual de eliminarse por TAmin?
           </p>
@@ -86,15 +87,15 @@ export default function HelpView() {
             name="Generar Cohorte"
             purpose="Generar N alumnos sintéticos o construir una cohorte real alumno por alumno."
             inputs="Perfil + escenario + count + seed; o construcción manual con kanban."
-            outputs="Estadística agregada (% titulados / eliminados TAmin / Opor), tabla por alumno, descarga ZIP cohorte. En 'Ver' se puede proyectar el futuro de cada alumno."
+            outputs="Estadística agregada (% titulados / eliminados TAmin / Opor con su conteo), tabla por alumno y descarga ZIP. Cada alumno se proyecta con Montecarlo: en 'Ver', el kanban y el banner muestran el resultado MÁS PROBABLE de esa proyección (no la única muestra generada)."
           />
           <ViewCard
             icon={<SlidersHorizontal size={16} />}
             color="amber"
             name="Calibración"
-            purpose="Ajustar los pesos W_hist, W_prereq, W_stress del motor δ usando backtesting walk-forward."
-            inputs="Sets de historiales reales (o sintéticos) divididos en train/test."
-            outputs="Métricas Brier / Accuracy / LogLoss + grid search que recomienda los mejores pesos para la cohorte."
+            purpose="Ajustar a mano los pesos W_hist, W_prereq, W_stress del motor δ y medir su impacto de predicción sobre una cohorte sintética (backtest)."
+            inputs="Una malla guardada (no usa los escenarios del paper) + perfil + nº de alumnos + iteraciones por corte + seed, y los tres pesos."
+            outputs="Métricas Brier / Accuracy / Log-loss comparadas contra el baseline con pesos en 0. Menor Brier y Log-loss = mejor; mayor Accuracy = mejor."
           />
           <ViewCard
             icon={<LayoutGrid size={16} />}
@@ -179,6 +180,35 @@ donde:
             Para una cohorte particular, usa <strong>Calibración</strong> para encontrar los óptimos
             por grid search.
           </p>
+        </Section>
+
+        <Section icon={<Waypoints size={20} className="text-orange-500" />} title="Flechas del Kanban (prerequisitos y repeticiones)">
+          <p className="text-slate-600 mb-4">
+            En los kanbans (editor de malla, Simular Alumno y el detalle de cada alumno de una
+            cohorte) las cards se ordenan por sigla y pueden mostrar sus relaciones con flechas.
+            Por defecto vienen ocultas para no saturar.
+          </p>
+          <div className="space-y-3">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="font-bold text-orange-800 mb-1 flex items-center gap-2">
+                <Waypoints size={16} /> Prerequisitos (por ramo)
+              </div>
+              <p className="text-sm text-orange-700">
+                Cada ramo con relaciones tiene un ícono <Waypoints size={12} className="inline" />.
+                Al activarlo se dibujan SOLO las flechas de ese ramo: hacia sus prerrequisitos y
+                hacia los ramos que abre. Puede activar varios a la vez; cada uno usa un color
+                distinto (el primero naranjo) y aparece como chip arriba, con un botón "Limpiar".
+              </p>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="font-bold text-red-800 mb-1">Repeticiones (reprobados)</div>
+              <p className="text-sm text-red-700">
+                El botón <strong>"Ver reprobados"</strong> muestra, en rojo punteado, una flecha
+                desde cada ramo reprobado hacia el intento siguiente del mismo ramo. Es un toggle
+                global e independiente de los prerrequisitos.
+              </p>
+            </div>
+          </div>
         </Section>
 
         <Section icon={<BarChart3 size={20} className="text-blue-500" />} title="Métricas del Dashboard">
@@ -290,17 +320,19 @@ S1-2023,MAT-201,6,0,en_curso`}
           <FormatTable
             cols={['Perfil', 'Esfuerzo', 'Disciplina', 'Tolerancia', 'Descripción']}
             rows={[
-              ['esforzado_top', '0.90', '0.85', '0.30', 'Alto rendimiento, baja tolerancia a carga excesiva'],
-              ['promedio_alto', '0.70', '0.65', '0.50', 'Sobre la media, perfil regular'],
-              ['promedio', '0.50', '0.50', '0.50', 'Centro de la distribución'],
-              ['promedio_bajo', '0.35', '0.40', '0.60', 'Bajo la media, tolera más sobrecarga'],
-              ['en_problemas', '0.20', '0.25', '0.70', 'Riesgo alto, muy tolerante a abandonar'],
+              ['esforzado_top', '0.95', '0.90', '0.85', 'Alta capacidad, muy consistente y tolera carga alta'],
+              ['promedio_alto', '0.70', '0.75', '0.70', 'Sobre la media en las tres dimensiones'],
+              ['promedio', '0.55', '0.60', '0.55', 'Centro de la distribución'],
+              ['promedio_bajo', '0.40', '0.45', '0.40', 'Bajo la media, inscribe cargas más livianas'],
+              ['en_problemas', '0.25', '0.30', '0.25', 'Riesgo alto: poca capacidad, irregular y baja carga'],
             ]}
           />
           <p className="text-xs text-slate-500 mt-3">
-            Los 3 valores modulan probabilidad base de aprobación, retoma de ramos reprobados y
-            decisión de seguir/abandonar. El perfil <em>manual</em> aparece cuando el alumno se
-            construyó a mano (sin rasgos sintéticos).
+            <strong>Esfuerzo</strong> = capacidad y dedicación (sube la probabilidad de aprobar).{' '}
+            <strong>Disciplina</strong> = consistencia (reduce la variabilidad de las notas).{' '}
+            <strong>Tolerancia</strong> = cuánta carga inscribe sin saturarse (más alta ⇒ más
+            créditos por semestre). El perfil <em>manual</em> aparece cuando el alumno se construyó
+            a mano (sin rasgos sintéticos).
           </p>
         </Section>
 

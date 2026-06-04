@@ -64,7 +64,7 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
   const [escenario, setEscenario] = useState<string>(() => (standalone ? '' : 'caso_actual'));
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
   const [count, setCount] = useState<number>(50);
-  const [seedBase, setSeedBase] = useState<number>(42);
+  const [seedBase, setSeedBase] = useState<number>(() => generarSeedAleatoria());
 
   const [resultado, setResultado] = useState<CohorteResponse | null>(null);
   const [detalleAlumno, setDetalleAlumno] = useState<StudentHistory | null>(null);
@@ -615,7 +615,10 @@ function SinteticoForm({
       <h3 className="font-bold text-slate-800 mb-4">Configuración de la cohorte sintética</h3>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <div>
-          <label className="text-xs font-semibold text-slate-600 mb-1 block">Perfil</label>
+          <label className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+            Perfil
+            <HelpTip text="Preset de 3 rasgos en [0,1] aplicado a toda la cohorte: Esfuerzo (capacidad y dedicación, sube la probabilidad de aprobar), Disciplina (consistencia, reduce la variabilidad de las notas) y Tolerancia (cuánta carga inscribe sin saturarse). Van de 'esforzado_top' (rasgos altos) a 'en_problemas' (rasgos bajos); 'promedio' es el centro." />
+          </label>
           <select
             value={perfilSeleccionado}
             onChange={(e) => setPerfilSeleccionado(e.target.value)}
@@ -876,16 +879,19 @@ function DetalleAlumnoModal({
                 <Kpi
                   label="Tasa Titulación"
                   value={`${((prediccion.tasa_titulacion ?? 0) * 100).toFixed(1)}%`}
+                  sub={`${Math.round((prediccion.tasa_titulacion ?? 0) * (prediccion.iteraciones || 0))} / ${prediccion.iteraciones || 0} iter.`}
                   color="emerald"
                 />
                 <Kpi
                   label="Eliminado TAmin"
                   value={`${((prediccion.tasa_eliminado_tamin ?? 0) * 100).toFixed(1)}%`}
+                  sub={`${Math.round((prediccion.tasa_eliminado_tamin ?? 0) * (prediccion.iteraciones || 0))} / ${prediccion.iteraciones || 0} iter.`}
                   color="amber"
                 />
                 <Kpi
                   label="Eliminado Opor"
                   value={`${((prediccion.tasa_eliminado_opor ?? 0) * 100).toFixed(1)}%`}
+                  sub={`${Math.round((prediccion.tasa_eliminado_opor ?? 0) * (prediccion.iteraciones || 0))} / ${prediccion.iteraciones || 0} iter.`}
                   color="red"
                 />
                 <Kpi
@@ -969,7 +975,7 @@ function calcularEstadisticas(alumnos: StudentHistory[]) {
   };
 }
 
-function Kpi({ label, value, count, color }: { label: string; value: string; count?: number; color: string }) {
+function Kpi({ label, value, count, sub, color }: { label: string; value: string; count?: number; sub?: string; color: string }) {
   const colorClass =
     {
       emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
@@ -984,6 +990,7 @@ function Kpi({ label, value, count, color }: { label: string; value: string; cou
       {count !== undefined && (
         <div className="text-xs opacity-60 mt-1">{count} alumnos</div>
       )}
+      {sub && <div className="text-xs opacity-60 mt-0.5 tabular-nums">{sub}</div>}
     </div>
   );
 }

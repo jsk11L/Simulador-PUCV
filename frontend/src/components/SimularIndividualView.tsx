@@ -65,7 +65,7 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
   // el selector ya no expone.
   const [escenario, setEscenario] = useState<string>(() => (standalone ? '' : 'caso_actual'));
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
-  const [seed, setSeed] = useState<number>(42);
+  const [seed, setSeed] = useState<number>(() => generarSeedAleatoria());
 
   // Flujo sintético.
   const [perfiles, setPerfiles] = useState<StudentProfile[]>([]);
@@ -424,7 +424,10 @@ function SinteticoForm({
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         <div>
-          <label className="text-xs font-semibold text-slate-600 mb-1 block">Perfil</label>
+          <label className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+            Perfil
+            <HelpTip text="Preset de 3 rasgos en [0,1]: Esfuerzo (capacidad y dedicación, sube la probabilidad de aprobar), Disciplina (consistencia, reduce la variabilidad de las notas) y Tolerancia (cuánta carga inscribe sin saturarse). Van de 'esforzado_top' (rasgos altos) a 'en_problemas' (rasgos bajos); 'promedio' es el centro." />
+          </label>
           <select
             value={perfilSeleccionado}
             onChange={(e) => setPerfilSeleccionado(e.target.value)}
@@ -499,6 +502,8 @@ function SinteticoForm({
 }
 
 function ProyeccionSection({ prediccion }: { prediccion: IndividualPrediction }) {
+  const iter = prediccion.iteraciones || 0;
+  const cuenta = (tasa?: number) => `${Math.round((tasa ?? 0) * iter)} / ${iter} iter.`;
   return (
     <section className="mt-6 bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
       <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -510,16 +515,19 @@ function ProyeccionSection({ prediccion }: { prediccion: IndividualPrediction })
         <Kpi
           label="Tasa Titulación"
           value={`${((prediccion.tasa_titulacion ?? 0) * 100).toFixed(1)}%`}
+          sub={cuenta(prediccion.tasa_titulacion)}
           color="emerald"
         />
         <Kpi
           label="Eliminado TAmin"
           value={`${((prediccion.tasa_eliminado_tamin ?? 0) * 100).toFixed(1)}%`}
+          sub={cuenta(prediccion.tasa_eliminado_tamin)}
           color="amber"
         />
         <Kpi
           label="Eliminado Opor"
           value={`${((prediccion.tasa_eliminado_opor ?? 0) * 100).toFixed(1)}%`}
+          sub={cuenta(prediccion.tasa_eliminado_opor)}
           color="red"
         />
         <Kpi
@@ -546,6 +554,7 @@ function ProyeccionSection({ prediccion }: { prediccion: IndividualPrediction })
               <th className="text-right p-2 font-semibold text-slate-600">Sem.</th>
               <th className="text-right p-2 font-semibold text-slate-600">Cred.</th>
               <th className="text-right p-2 font-semibold text-slate-600">Prob. aprobar</th>
+              <th className="text-right p-2 font-semibold text-slate-600">Aprob. / Reprob.</th>
               <th className="text-right p-2 font-semibold text-slate-600">Intentos prom.</th>
             </tr>
           </thead>
@@ -558,6 +567,11 @@ function ProyeccionSection({ prediccion }: { prediccion: IndividualPrediction })
                 <td className="p-2 text-right">
                   <ProbBar value={r.prob_aprobar ?? 0} />
                 </td>
+                <td className="p-2 text-right tabular-nums whitespace-nowrap">
+                  <span className="text-emerald-700 font-semibold">{Math.round((r.prob_aprobar ?? 0) * iter)} A</span>
+                  <span className="text-slate-300"> · </span>
+                  <span className="text-red-700 font-semibold">{iter - Math.round((r.prob_aprobar ?? 0) * iter)} R</span>
+                </td>
                 <td className="p-2 text-right text-slate-700">{(r.intentos_prom ?? 0).toFixed(2)}</td>
               </tr>
             ))}
@@ -568,7 +582,7 @@ function ProyeccionSection({ prediccion }: { prediccion: IndividualPrediction })
   );
 }
 
-function Kpi({ label, value, color }: { label: string; value: string; color: string }) {
+function Kpi({ label, value, sub, color }: { label: string; value: string; sub?: string; color: string }) {
   const colorClass =
     {
       emerald: 'bg-emerald-50 border-emerald-200 text-emerald-800',
@@ -580,6 +594,7 @@ function Kpi({ label, value, color }: { label: string; value: string; color: str
     <div className={`border rounded-lg p-3 ${colorClass}`}>
       <div className="text-xs font-semibold opacity-75">{label}</div>
       <div className="text-xl font-black mt-1">{value}</div>
+      {sub && <div className="text-xs opacity-60 mt-0.5 tabular-nums">{sub}</div>}
     </div>
   );
 }
