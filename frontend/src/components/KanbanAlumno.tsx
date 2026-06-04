@@ -1,7 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Ban, GitFork, GraduationCap, XCircle } from 'lucide-react';
+import { useMemo, useRef } from 'react';
+import { AlertTriangle, Ban, GraduationCap, Waypoints, X, XCircle } from 'lucide-react';
 import { ordenarPorSigla } from '../lib/sigla';
-import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
+import KanbanArrows, {
+  construirAristas,
+  useArrowSelection,
+  RelacionToggle,
+  type SubjectInstance,
+} from './KanbanArrows';
 import type {
   EstadoSubject,
   EstadoTrayectoria,
@@ -119,14 +124,16 @@ export default function KanbanAlumno({
     return out;
   }, [columnas]);
 
-  const edges = useMemo(
+  const allEdges = useMemo(
     () => construirAristas(instancias, reqsPorSigla ?? null),
     [instancias, reqsPorSigla],
   );
-  const hayPrereq = edges.some((e) => e.kind === 'prereq');
-  const hayRepeticion = edges.some((e) => e.kind === 'repeat');
+  const prereqEdges = useMemo(() => allEdges.filter((e) => e.kind === 'prereq'), [allEdges]);
+  const repeatEdges = useMemo(() => allEdges.filter((e) => e.kind === 'repeat'), [allEdges]);
+  const arrows = useArrowSelection(prereqEdges, repeatEdges);
+  const hayPrereq = prereqEdges.length > 0;
+  const hayRepeticion = repeatEdges.length > 0;
 
-  const [mostrarFlechas, setMostrarFlechas] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
 
   if (totalCursos === 0) {
@@ -185,34 +192,60 @@ export default function KanbanAlumno({
         </div>
       )}
       {(hayPrereq || hayRepeticion) && (
-        <div className="flex items-center gap-3 mb-3 text-xs flex-wrap">
-          <button
-            type="button"
-            onClick={() => setMostrarFlechas((v) => !v)}
-            className={[
-              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
-              mostrarFlechas
-                ? 'bg-slate-800 text-white border-slate-800'
-                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
-            ].join(' ')}
-          >
-            <GitFork size={13} />
-            {mostrarFlechas ? 'Ocultar flechas' : 'Mostrar flechas'}
-          </button>
-          {mostrarFlechas && hayPrereq && (
-            <span className="flex items-center gap-1.5">
-              <span className="w-5 h-0.5 rounded bg-orange-500"></span>
-              <span className="text-slate-600">Prerequisito → ramo que abre</span>
+        <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
+          {hayPrereq && (
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Waypoints size={13} className="text-slate-400" />
+              Toca el <Waypoints size={11} className="inline text-slate-400" /> de un ramo para ver sus prerequisitos
             </span>
           )}
-          {mostrarFlechas && hayRepeticion && (
-            <span className="flex items-center gap-1.5">
-              <span
-                className="w-5 h-0.5 rounded"
-                style={{ backgroundImage: 'repeating-linear-gradient(90deg,#dc2626 0 4px,transparent 4px 7px)' }}
-              ></span>
-              <span className="text-slate-600">Reprobado → reintento</span>
+          {arrows.activas.map((sigla) => (
+            <span
+              key={sigla}
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-white text-[11px] font-bold font-mono"
+              style={{ backgroundColor: arrows.colorDe(sigla) ?? '#64748b' }}
+            >
+              {sigla}
+              <button
+                type="button"
+                onClick={() => arrows.toggleSigla(sigla)}
+                title={`Quitar ${sigla}`}
+                className="hover:opacity-70"
+              >
+                <X size={11} />
+              </button>
             </span>
+          ))}
+          {arrows.activas.length > 0 && (
+            <button
+              type="button"
+              onClick={arrows.limpiar}
+              className="text-slate-500 underline hover:text-slate-700"
+            >
+              Limpiar
+            </button>
+          )}
+          {hayRepeticion && (
+            <button
+              type="button"
+              onClick={() => arrows.setVerRepeticiones((v) => !v)}
+              className={[
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors ml-auto',
+                arrows.verRepeticiones
+                  ? 'bg-red-600 text-white border-red-600'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              <span
+                className="w-5 h-0.5 rounded shrink-0"
+                style={{
+                  backgroundImage: arrows.verRepeticiones
+                    ? 'repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 7px)'
+                    : 'repeating-linear-gradient(90deg,#dc2626 0 4px,transparent 4px 7px)',
+                }}
+              ></span>
+              {arrows.verRepeticiones ? 'Ocultar reprobados' : 'Ver reprobados'}
+            </button>
           )}
         </div>
       )}
@@ -226,13 +259,18 @@ export default function KanbanAlumno({
               proyectado={proyectado}
               probPorSigla={proyectado ? probPorSigla : null}
               onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
+              arrowSel={{
+                siglasConRelacion: arrows.siglasConRelacion,
+                colorDe: arrows.colorDe,
+                toggleSigla: arrows.toggleSigla,
+              }}
             />
           ))}
           <KanbanArrows
             contentRef={contentRef}
-            edges={edges}
-            enabled={mostrarFlechas}
-            recomputeKey={instancias}
+            edges={arrows.edges}
+            enabled={arrows.edges.length > 0}
+            recomputeKey={arrows.edges}
           />
         </div>
       </div>
@@ -411,18 +449,28 @@ function EstadoFinalBanner({
   );
 }
 
+// Controles compartidos del overlay de flechas que la columna propaga a
+// cada card (botón de relaciones por ramo).
+type ArrowSel = {
+  siglasConRelacion: Set<string>;
+  colorDe: (sigla: string) => string | null;
+  toggleSigla: (sigla: string) => void;
+};
+
 function SemesterColumn({
   sem,
   cursosConKey,
   proyectado,
   probPorSigla,
   onClickRamo,
+  arrowSel,
 }: {
   sem: SemesterRecord;
   cursosConKey: Array<{ curso: SubjectRecord; key: string }>;
   proyectado?: boolean;
   probPorSigla?: Map<string, number> | null;
   onClickRamo?: (curso: SubjectRecord, idx: number) => void;
+  arrowSel?: ArrowSel;
 }) {
   // Las cards ya vienen ordenadas por sigla y con su clave de instancia
   // desde el padre (compartida con el overlay de flechas).
@@ -485,6 +533,7 @@ function SemesterColumn({
             curso={c}
             probAprobar={probPorSigla?.get(c.sigla)}
             onClick={onClickRamo ? () => onClickRamo(c, idx) : undefined}
+            arrowSel={arrowSel}
           />
         ))}
       </div>
@@ -497,6 +546,7 @@ function CursoCard({
   nodeKey,
   probAprobar,
   onClick,
+  arrowSel,
 }: {
   curso: SubjectRecord;
   // Clave de instancia para anclar las flechas del overlay.
@@ -506,10 +556,15 @@ function CursoCard({
   // solo a semestres proyectados (KanbanAlumno controla la propagación).
   probAprobar?: number;
   onClick?: () => void;
+  arrowSel?: ArrowSel;
 }) {
   const heat = typeof probAprobar === 'number' ? heatmapStyles(probAprobar) : null;
   const styles = heat ?? estadoStyles(curso.estado);
   const Tag = onClick ? 'button' : 'div';
+  // El botón de relaciones solo aparece si el ramo participa en alguna
+  // arista de prerequisito (tiene reqs o abre otros ramos).
+  const tieneRelacion = arrowSel?.siglasConRelacion.has(curso.sigla) ?? false;
+  const colorRel = arrowSel?.colorDe(curso.sigla) ?? null;
 
   return (
     <Tag
@@ -525,8 +580,17 @@ function CursoCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className={`font-mono font-bold text-xs ${styles.text}`}>{curso.sigla}</span>
-        <span className="text-[10px] font-semibold text-slate-500 shrink-0">
-          {curso.creditos} cr
+        <span className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] font-semibold text-slate-500">
+            {curso.creditos} cr
+          </span>
+          {tieneRelacion && arrowSel && (
+            <RelacionToggle
+              active={colorRel !== null}
+              color={colorRel}
+              onClick={() => arrowSel.toggleSigla(curso.sigla)}
+            />
+          )}
         </span>
       </div>
       {heat ? (

@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, Sliders } from 'lucide-react';
 import type { VariablesSimulacion } from '../types';
+import HelpTip from './HelpTip';
 
 type VariablesStepProps = {
   variables: VariablesSimulacion;
@@ -25,7 +26,10 @@ export default function VariablesStep({ variables, setVariables, onBack, onNext 
         <div className="max-w-3xl space-y-2.5">
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <label className="text-base font-bold text-slate-700">NE</label>
+              <label className="text-base font-bold text-slate-700 flex items-center gap-1.5">
+                NE
+                <HelpTip side="bottom" text="Tamaño de la cohorte sintética que el motor genera y sigue hasta el cierre (titulación o eliminación). Más estudiantes = métricas más estables pero simulación más lenta. Valor típico: 1000." />
+              </label>
               <span className="text-sm text-slate-500 text-right">Numero de estudiantes a simular por iteracion</span>
             </div>
             <input
@@ -38,7 +42,10 @@ export default function VariablesStep({ variables, setVariables, onBack, onNext 
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <label className="text-base font-bold text-slate-700">NCSmax</label>
+              <label className="text-base font-bold text-slate-700 flex items-center gap-1.5">
+                NCSmax
+                <HelpTip side="bottom" text="Tope de créditos que un estudiante puede inscribir en un semestre. Limita la carga académica máxima. Subirlo permite avanzar más rápido; bajarlo modela mallas más rígidas. Típico: 22-25." />
+              </label>
               <span className="text-sm text-slate-500 text-right">Creditos maximos permitidos por semestre</span>
             </div>
             <input
@@ -51,7 +58,10 @@ export default function VariablesStep({ variables, setVariables, onBack, onNext 
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <label className="text-base font-bold text-slate-700">TAmin</label>
+              <label className="text-base font-bold text-slate-700 flex items-center gap-1.5">
+                TAmin
+                <HelpTip side="bottom" text="Tasa de avance mínima: créditos aprobados dividido por semestres cursados. Si cae por debajo de este umbral (a partir de NapTAmin), el estudiante es eliminado por bajo avance. Típico: 0.6." />
+              </label>
               <span className="text-sm text-slate-500 text-right">Tasa minima de avance para evitar eliminacion</span>
             </div>
             <input
@@ -65,7 +75,10 @@ export default function VariablesStep({ variables, setVariables, onBack, onNext 
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <label className="text-base font-bold text-slate-700">NapTAmin</label>
+              <label className="text-base font-bold text-slate-700 flex items-center gap-1.5">
+                NapTAmin
+                <HelpTip text="Semestre a partir del cual empieza a evaluarse el criterio TAmin. Antes de este semestre no se elimina a nadie por bajo avance (período de gracia inicial). Típico: 3." />
+              </label>
               <span className="text-sm text-slate-500 text-right">Semestre en que comienza a aplicarse TAmin</span>
             </div>
             <input
@@ -78,7 +91,10 @@ export default function VariablesStep({ variables, setVariables, onBack, onNext 
 
           <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-3 mb-2">
-              <label className="text-base font-bold text-slate-700">Opor</label>
+              <label className="text-base font-bold text-slate-700 flex items-center gap-1.5">
+                Opor
+                <HelpTip text="Número máximo de veces que un estudiante puede cursar (reprobar) una misma asignatura. Al agotar las oportunidades en cualquier ramo, es eliminado. Típico: 3-4." />
+              </label>
               <span className="text-sm text-slate-500 text-right">Maximo de oportunidades antes de eliminacion</span>
             </div>
             <input

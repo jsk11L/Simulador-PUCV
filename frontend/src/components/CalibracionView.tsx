@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dices, Loader2, Play, RotateCcw, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import useStudentApi, { type BacktestCohorteResponse, type MallaCustomOverride } from '../hooks/useStudentApi';
 import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
+import HelpTip from './HelpTip';
 import type { MallaGuardada, ModifierWeights, StudentProfile } from '../types';
 
 // Pesos por defecto (espejo de DefaultWeights en backend)
@@ -110,6 +111,7 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <SlidersHorizontal size={18} className="text-amber-500" />
                   Pesos del Modelo
+                  <HelpTip side="bottom" text="Los pesos δ controlan cuánto influyen ciertos factores del alumno (historial, prerrequisitos, sobrecarga) en su probabilidad de aprobar cada ramo. Con todos en 0, el motor ignora esos factores (modelo base). Suba un peso para darle más influencia y mida si mejora la predicción." />
                 </h3>
                 <button
                   onClick={handleReset}
@@ -123,18 +125,21 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                 <WeightControl
                   label="W_hist"
                   description="Peso del modificador por esfuerzo histórico (ratio créditos aprobados / inscritos)"
+                  help="Premia a quien viene aprobando casi todo lo que inscribe y penaliza a quien arrastra reprobaciones. Más peso = el rendimiento pasado pesa más en la predicción futura."
                   value={weights.w_hist}
                   onChange={(v) => setWeights({ ...weights, w_hist: v })}
                 />
                 <WeightControl
                   label="W_prereq"
                   description="Peso del modificador por nota promedio de prerrequisitos aprobados"
+                  help="Usa las notas de los prerrequisitos como señal: quien aprobó los ramos previos con buenas notas tiene más probabilidad de aprobar el que los requiere."
                   value={weights.w_prereq}
                   onChange={(v) => setWeights({ ...weights, w_prereq: v })}
                 />
                 <WeightControl
                   label="W_stress"
                   description="Peso del modificador por sobrecarga académica (carga actual vs histórica)"
+                  help="Penaliza inscribir muchos más créditos que el promedio histórico del alumno (sobrecarga). Más peso = la sobrecarga reduce más la probabilidad de aprobar."
                   value={weights.w_stress}
                   onChange={(v) => setWeights({ ...weights, w_stress: v })}
                 />
@@ -221,7 +226,10 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
           {/* ============================= */}
           <div>
             <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm sticky top-4">
-              <h3 className="font-bold text-slate-800 mb-4">Métricas</h3>
+              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-1.5">
+                Métricas
+                <HelpTip side="bottom" text="Calidad de las predicciones vs lo que realmente pasó en la cohorte. Brier y Log-loss: menor es mejor (qué tan calibradas están las probabilidades). Accuracy: mayor es mejor (aciertos). Se comparan contra el baseline con todos los pesos en 0." />
+              </h3>
 
               {!resultado ? (
                 <div className="text-center text-slate-400 text-sm py-8">
@@ -280,11 +288,13 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 function WeightControl({
   label,
   description,
+  help,
   value,
   onChange,
 }: {
   label: string;
   description: string;
+  help?: string;
   value: number;
   onChange: (v: number) => void;
 }) {
@@ -300,7 +310,10 @@ function WeightControl({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-sm font-bold text-slate-800 font-mono">{label}</label>
+        <label className="text-sm font-bold text-slate-800 font-mono flex items-center gap-1.5">
+          {label}
+          {help && <HelpTip side="bottom" text={help} />}
+        </label>
         <input
           type="number"
           min={0}

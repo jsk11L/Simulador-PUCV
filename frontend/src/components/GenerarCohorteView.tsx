@@ -18,6 +18,7 @@ import KanbanAlumno from './KanbanAlumno';
 import FlujoManualAlumno from './FlujoManualAlumno';
 import { indexToStudentId } from '../lib/studentId';
 import { descargarAlumno, descargarCohorte } from '../lib/studentDownload';
+import HelpTip from './HelpTip';
 import type {
   IndividualPrediction,
   MallaGuardada,
@@ -288,9 +289,10 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
             onChange={(e) => setModoPreciso(e.target.checked)}
             className="rounded border-slate-300"
           />
-          <label htmlFor="cohorte-modo-preciso" className="text-sm text-slate-700 cursor-pointer">
+          <label htmlFor="cohorte-modo-preciso" className="text-sm text-slate-700 cursor-pointer flex items-center gap-1.5">
             <span className="font-semibold">Modo preciso</span>
             <span className="text-slate-500"> — 5000 iteraciones por alumno en lugar de 500 (más lento, % por estado más estable).</span>
+            <HelpTip side="bottom" text="Cada alumno se proyecta muchas veces (Montecarlo) y se promedian los resultados. Más iteraciones = porcentajes de titulación/eliminación más estables y confiables, pero tarda ~10x más. Úselo para resultados finales, no para explorar." />
           </label>
         </div>
 

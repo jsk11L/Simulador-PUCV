@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, FileUp, GitFork, Loader2, Plus, Trash2, X } from 'lucide-react';
-import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
+import { Activity, FileUp, Loader2, Plus, Trash2, Waypoints, X } from 'lucide-react';
+import KanbanArrows, {
+  construirAristas,
+  useArrowSelection,
+  RelacionToggle,
+  type SubjectInstance,
+} from './KanbanArrows';
 import useStudentApi, { type MallaCustomOverride } from '../hooks/useStudentApi';
 import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
 import { parseImported } from '../lib/studentImport';
@@ -222,8 +227,8 @@ export default function FlujoManualAlumno({
 
   const totalCursados = alumno.semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
 
-  // Flechas de prerequisito (naranjas) sobre el kanban de la malla.
-  const [mostrarFlechas, setMostrarFlechas] = useState(true);
+  // Flechas de prerequisito sobre el kanban de la malla: cada ramo se activa
+  // con su botón y pinta sus relaciones con un color de la paleta.
   const contentRef = useRef<HTMLDivElement>(null);
   const reqsPorSigla = useMemo(
     () => new Map(asignaturas.map((a) => [a.id, a.reqs ?? []])),
@@ -237,6 +242,7 @@ export default function FlujoManualAlumno({
     }));
     return construirAristas(instancias, reqsPorSigla);
   }, [asignaturas, reqsPorSigla]);
+  const arrows = useArrowSelection(arrowEdges, []);
   const hayFlechas = arrowEdges.length > 0;
 
   return (
@@ -355,25 +361,36 @@ export default function FlujoManualAlumno({
         </div>
 
         {hayFlechas && !loadingMalla && (
-          <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
-            <button
-              type="button"
-              onClick={() => setMostrarFlechas((v) => !v)}
-              className={[
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
-                mostrarFlechas
-                  ? 'bg-slate-800 text-white border-slate-800'
-                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
-              ].join(' ')}
-            >
-              <GitFork size={13} />
-              {mostrarFlechas ? 'Ocultar prerequisitos' : 'Mostrar prerequisitos'}
-            </button>
-            {mostrarFlechas && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-5 h-0.5 rounded bg-orange-500"></span>
-                <span className="text-slate-600">Prerequisito → ramo que abre</span>
+          <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Waypoints size={13} className="text-slate-400" />
+              Toca el <Waypoints size={11} className="inline text-slate-400" /> de un ramo para ver sus prerequisitos
+            </span>
+            {arrows.activas.map((sigla) => (
+              <span
+                key={sigla}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-white text-[11px] font-bold font-mono"
+                style={{ backgroundColor: arrows.colorDe(sigla) ?? '#64748b' }}
+              >
+                {sigla}
+                <button
+                  type="button"
+                  onClick={() => arrows.toggleSigla(sigla)}
+                  title={`Quitar ${sigla}`}
+                  className="hover:opacity-70"
+                >
+                  <X size={11} />
+                </button>
               </span>
+            ))}
+            {arrows.activas.length > 0 && (
+              <button
+                type="button"
+                onClick={arrows.limpiar}
+                className="text-slate-500 underline hover:text-slate-700"
+              >
+                Limpiar
+              </button>
             )}
           </div>
         )}
@@ -392,13 +409,18 @@ export default function FlujoManualAlumno({
                   ramos={ramos}
                   alumno={alumno}
                   onClickRamo={handleClickRamoMalla}
+                  arrowSel={{
+                    siglasConRelacion: arrows.siglasConRelacion,
+                    colorDe: arrows.colorDe,
+                    toggleSigla: arrows.toggleSigla,
+                  }}
                 />
               ))}
               <KanbanArrows
                 contentRef={contentRef}
-                edges={arrowEdges}
-                enabled={mostrarFlechas}
-                recomputeKey={arrowEdges}
+                edges={arrows.edges}
+                enabled={arrows.edges.length > 0}
+                recomputeKey={arrows.edges}
               />
             </div>
           </div>
@@ -426,11 +448,17 @@ function MallaSemColumn({
   ramos,
   alumno,
   onClickRamo,
+  arrowSel,
 }: {
   semNominal: number;
   ramos: Asignatura[];
   alumno: StudentHistory;
   onClickRamo: (asig: Asignatura) => void;
+  arrowSel?: {
+    siglasConRelacion: Set<string>;
+    colorDe: (sigla: string) => string | null;
+    toggleSigla: (sigla: string) => void;
+  };
 }) {
   const indexByRamo = useMemo(() => {
     const map = new Map<string, SubjectRecord>();
@@ -465,7 +493,16 @@ function MallaSemColumn({
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-mono font-bold">{r.id}</span>
-                <span className="text-[10px] font-semibold opacity-70 shrink-0">{r.cred} cr</span>
+                <span className="flex items-center gap-1 shrink-0">
+                  <span className="text-[10px] font-semibold opacity-70">{r.cred} cr</span>
+                  {arrowSel?.siglasConRelacion.has(r.id) && (
+                    <RelacionToggle
+                      active={arrowSel.colorDe(r.id) !== null}
+                      color={arrowSel.colorDe(r.id)}
+                      onClick={() => arrowSel.toggleSigla(r.id)}
+                    />
+                  )}
+                </span>
               </div>
               {cursado ? (
                 <div className="flex items-baseline justify-between mt-1">

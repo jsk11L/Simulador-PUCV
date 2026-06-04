@@ -16,6 +16,8 @@ import useAuth from './hooks/useAuth';
 import useAppNavigation from './hooks/useAppNavigation';
 import useMallaPersistence from './hooks/useMallaPersistence';
 import useRuntimeMode from './hooks/useRuntimeMode';
+import useBackendHealth from './hooks/useBackendHealth';
+import BackendDownBanner from './components/BackendDownBanner';
 import { MAX_SEMESTRES, MIN_SEMESTRES } from './constants/wizard';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -362,6 +364,14 @@ export default function App() {
   const standalone = runtimeInfo?.standalone === true;
   const isLoggedIn = standalone || isAuthenticated;
 
+  // Vigila que el backend siga respondiendo. Si se cae (proceso cerrado),
+  // mostramos un banner rojo. Desactivado mientras carga o tras un cierre
+  // intencional (appCerrada).
+  const { down: backendCaido, recheck: recheckBackend } = useBackendHealth(
+    apiUrl,
+    runtimeInfo !== null && !appCerrada,
+  );
+
   useEffect(() => {
     if (standalone) {
       fetchMallasGuardadas();
@@ -399,15 +409,18 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <AuthView
-        authMode={authMode}
-        email={email}
-        password={password}
-        setAuthMode={setAuthMode}
-        setEmail={setEmail}
-        setPassword={setPassword}
-        handleAuth={handleAuth}
-      />
+      <>
+        {backendCaido && <BackendDownBanner onRetry={recheckBackend} />}
+        <AuthView
+          authMode={authMode}
+          email={email}
+          password={password}
+          setAuthMode={setAuthMode}
+          setEmail={setEmail}
+          setPassword={setPassword}
+          handleAuth={handleAuth}
+        />
+      </>
     );
   }
 
@@ -489,7 +502,9 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-800">
-      
+
+      {backendCaido && <BackendDownBanner onRetry={recheckBackend} />}
+
       {/* ========================================== */}
       {/* MODALES DE VALIDACIÓN Y MALLAS GUARDADAS   */}
       {/* ========================================== */}

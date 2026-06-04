@@ -15,6 +15,7 @@ import KanbanAlumno from './KanbanAlumno';
 import FlujoManualAlumno from './FlujoManualAlumno';
 import { rutToStudentId } from '../lib/studentId';
 import { descargarAlumno } from '../lib/studentDownload';
+import HelpTip from './HelpTip';
 import type {
   IndividualPrediction,
   MallaGuardada,
@@ -289,6 +290,7 @@ export default function SimularIndividualView({ apiUrl, mallasGuardadas, standal
                     className="rounded border-slate-300"
                   />
                   Modo preciso <span className="text-slate-400">(5000 iteraciones, más lento)</span>
+                  <HelpTip text="Proyecta el futuro del alumno con 5000 simulaciones en vez de 500. Las probabilidades por ramo y las tasas de cierre quedan más estables, a costa de ~10x más tiempo." />
                 </label>
                 <button
                   onClick={handleProyectar}
@@ -461,8 +463,9 @@ function SinteticoForm({
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold text-slate-600 mb-1 block">
+          <label className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
             Cortar tras N semestres <span className="text-slate-400">(0 = completo)</span>
+            <HelpTip text="Genera el historial del alumno solo hasta este número de semestres y deja el resto como futuro a proyectar. Útil para simular 'voy en 4° semestre, ¿cómo me irá?'. 0 = genera la trayectoria completa hasta el cierre." />
           </label>
           <input
             type="number"

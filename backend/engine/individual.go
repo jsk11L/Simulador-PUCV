@@ -143,6 +143,7 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 	// iter ≤ ~1000, semestres ≤ 30, cursos ≤ ~8 por semestre.
 	trayectorias := make([][]models.SemesterRecord, 0, iter)
 	semestresFinales := make([]int, 0, iter)
+	estadosFinales := make([]models.EstadoAlumno, 0, iter)
 
 	for it := 0; it < iter; it++ {
 		hist := simularFuturoUnaVez(rng, cfg, malla, resumen, aprobadosPrevios)
@@ -172,6 +173,7 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 
 		trayectorias = append(trayectorias, hist.semestresProyectados)
 		semestresFinales = append(semestresFinales, hist.semestreFinal)
+		estadosFinales = append(estadosFinales, hist.estado)
 	}
 
 	pred := IndividualPrediction{
@@ -193,10 +195,15 @@ func SimulateIndividual(cfg IndividualConfig) (IndividualPrediction, error) {
 		pred.DeltaStressAvg = sumDeltaStress / float64(contadoresDelta)
 	}
 
-	// Elegir trayectoria representativa: aquella cuyo `semestreFinal` está
-	// cerca de la mediana del conjunto. Da una proyección "típica" en vez
-	// de un outlier.
-	pred.TrayectoriaProyectada = elegirTrayectoriaRepresentativa(trayectorias, semestresFinales)
+	// Elegir trayectoria representativa: primero el resultado MÁS PROBABLE
+	// (titulación / TAmin / oportunidades, el de mayor frecuencia) y, dentro
+	// de ese grupo, la trayectoria cuyo `semestreFinal` está cerca de la
+	// mediana. Así el kanban que ve el usuario coincide con lo que dicen las
+	// tasas: si lo más probable es titularse, muestra una malla de titulado.
+	estadoPredominante := estadoMasFrecuente(titulados, elimTA, elimOpor)
+	pred.TrayectoriaProyectada = elegirTrayectoriaRepresentativa(
+		trayectorias, semestresFinales, estadosFinales, estadoPredominante,
+	)
 
 	// Construir tabla de probabilidades para ramos pendientes (que NO estaban aprobados).
 	probs := make([]RamoProbabilidad, 0)
@@ -512,18 +519,48 @@ func siguientePeriodo(base periodoBaseRef, idx int) (anio, semestre int, periodo
 	return anio, semestre, periodoID
 }
 
-// elegirTrayectoriaRepresentativa devuelve la trayectoria cuyo
-// semestreFinal está cerca de la mediana del conjunto. Si no hay
-// iteraciones, devuelve un slice vacío (NUNCA nil, para evitar JSON null).
-func elegirTrayectoriaRepresentativa(trayectorias [][]models.SemesterRecord, finales []int) []models.SemesterRecord {
+// estadoMasFrecuente devuelve el estado de cierre con mayor frecuencia entre
+// las iteraciones (el resultado "más probable"). Empates se resuelven por
+// prioridad Titulado > TAmin > Oportunidades.
+func estadoMasFrecuente(titulados, elimTA, elimOpor int) models.EstadoAlumno {
+	if titulados >= elimTA && titulados >= elimOpor {
+		return models.Titulado
+	}
+	if elimTA >= elimOpor {
+		return models.EliminadoTAmin
+	}
+	return models.EliminadoOpor
+}
+
+// elegirTrayectoriaRepresentativa devuelve una trayectoria representativa:
+// entre las que terminaron en `predominante` (el resultado más probable),
+// la de `semestreFinal` mediano. Si ninguna terminó en ese estado (caso
+// borde), cae a la mediana global. Nunca devuelve nil (evita JSON null).
+func elegirTrayectoriaRepresentativa(
+	trayectorias [][]models.SemesterRecord,
+	finales []int,
+	estados []models.EstadoAlumno,
+	predominante models.EstadoAlumno,
+) []models.SemesterRecord {
 	if len(trayectorias) == 0 {
 		return make([]models.SemesterRecord, 0)
 	}
-	// Ordenar índices por semestreFinal y elegir la mediana.
-	idx := make([]int, len(finales))
-	for i := range idx {
-		idx[i] = i
+
+	// Índices de las trayectorias del estado predominante.
+	idx := make([]int, 0, len(finales))
+	for i := range finales {
+		if i < len(estados) && estados[i] == predominante {
+			idx = append(idx, i)
+		}
 	}
+	// Respaldo: si no hay del estado predominante, usar todas.
+	if len(idx) == 0 {
+		idx = make([]int, len(finales))
+		for i := range idx {
+			idx[i] = i
+		}
+	}
+
 	sort.SliceStable(idx, func(i, j int) bool {
 		return finales[idx[i]] < finales[idx[j]]
 	})

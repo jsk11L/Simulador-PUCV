@@ -1,9 +1,14 @@
-import { FileSpreadsheet, FilePlus, Copy, GitFork, Search, LayoutGrid, Trash2, X, Save, Settings } from 'lucide-react';
+import { FileSpreadsheet, FilePlus, Copy, Waypoints, Search, LayoutGrid, Trash2, X, Save, Settings } from 'lucide-react';
 import { useMemo, useState, type RefObject, type WheelEventHandler } from 'react';
 import type { Asignatura, ModeloCalificaciones, VariablesSimulacion } from '../types';
 import { ICE_PAPER_BASE_TEMPLATE } from '../constants/icePaperBaseTemplate';
 import { ordenarPorSigla } from '../lib/sigla';
-import KanbanArrows, { construirAristas, type SubjectInstance } from './KanbanArrows';
+import KanbanArrows, {
+  construirAristas,
+  useArrowSelection,
+  RelacionToggle,
+  type SubjectInstance,
+} from './KanbanArrows';
 import KanbanTopControls from './KanbanTopControls';
 import KanbanBottomCta from './KanbanBottomCta';
 import KanbanAddSemesterCard from './KanbanAddSemesterCard';
@@ -156,10 +161,10 @@ export default function MallaStep({
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [expandedCareer, setExpandedCareer] = useState<string | null>(null);
-  const [mostrarFlechas, setMostrarFlechas] = useState(true);
 
-  // Flechas de prerequisito (naranjas) sobre el editor de malla. En la malla
-  // teórica no hay repeticiones, así que solo aplican las de prerequisito.
+  // Flechas de prerequisito sobre el editor de malla. En la malla teórica no
+  // hay repeticiones, así que solo aplican las de prerequisito. Cada ramo se
+  // activa con su botón y pinta sus relaciones con un color de la paleta.
   const reqsPorSigla = useMemo(
     () => new Map(malla.map((a) => [a.id, a.reqs ?? []])),
     [malla],
@@ -172,6 +177,7 @@ export default function MallaStep({
     }));
     return construirAristas(instancias, reqsPorSigla);
   }, [malla, reqsPorSigla]);
+  const arrows = useArrowSelection(arrowEdges, []);
   const hayFlechas = arrowEdges.length > 0;
 
   const cloneBaseMalla = () => ICE_PAPER_BASE_TEMPLATE.map((a) => ({ ...a, reqs: [...a.reqs] }));
@@ -451,25 +457,36 @@ export default function MallaStep({
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <KanbanTopControls onScrollLeft={() => scrollKanban('left')} onScrollRight={() => scrollKanban('right')} />
         {hayFlechas && (
-          <div className="flex items-center gap-3 text-xs flex-wrap">
-            <button
-              type="button"
-              onClick={() => setMostrarFlechas((v) => !v)}
-              className={[
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors',
-                mostrarFlechas
-                  ? 'bg-slate-800 text-white border-slate-800'
-                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
-              ].join(' ')}
-            >
-              <GitFork size={13} />
-              {mostrarFlechas ? 'Ocultar prerequisitos' : 'Mostrar prerequisitos'}
-            </button>
-            {mostrarFlechas && (
-              <span className="flex items-center gap-1.5">
-                <span className="w-5 h-0.5 rounded bg-orange-500"></span>
-                <span className="text-slate-600">Prerequisito → ramo que abre</span>
+          <div className="flex items-center gap-2 text-xs flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Waypoints size={13} className="text-slate-400" />
+              Toca el <Waypoints size={11} className="inline text-slate-400" /> de un ramo para ver sus prerequisitos
+            </span>
+            {arrows.activas.map((sigla) => (
+              <span
+                key={sigla}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-white text-[11px] font-bold font-mono"
+                style={{ backgroundColor: arrows.colorDe(sigla) ?? '#64748b' }}
+              >
+                {sigla}
+                <button
+                  type="button"
+                  onClick={() => arrows.toggleSigla(sigla)}
+                  title={`Quitar ${sigla}`}
+                  className="hover:opacity-70"
+                >
+                  <X size={11} />
+                </button>
               </span>
+            ))}
+            {arrows.activas.length > 0 && (
+              <button
+                type="button"
+                onClick={arrows.limpiar}
+                className="text-slate-500 underline hover:text-slate-700"
+              >
+                Limpiar
+              </button>
             )}
           </div>
         )}
@@ -499,7 +516,16 @@ export default function MallaStep({
                     <div key={asig.id} data-kanban-node={`${asig.semestre}:${asig.id}`} onClick={() => openDrawer(asig)} className={`bg-white p-3 rounded-lg border-2 shadow-sm transition-colors cursor-pointer group ${selectedSubject?.id === asig.id ? 'border-blue-500 bg-blue-50' : 'border-transparent hover:border-slate-300'}`}>
                       <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
                         <div className="font-black text-slate-800 text-lg group-hover:text-blue-700">{asig.id}</div>
-                        <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200">{asig.cred} CR</span>
+                        <span className="flex items-center gap-1.5 shrink-0">
+                          <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200">{asig.cred} CR</span>
+                          {arrows.siglasConRelacion.has(asig.id) && (
+                            <RelacionToggle
+                              active={arrows.colorDe(asig.id) !== null}
+                              color={arrows.colorDe(asig.id)}
+                              onClick={() => arrows.toggleSigla(asig.id)}
+                            />
+                          )}
+                        </span>
                       </div>
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-slate-500 font-medium">Reprobación:</span>
@@ -528,9 +554,9 @@ export default function MallaStep({
           <KanbanAddSemesterCard totalSemestres={totalSemestres} maxSemestres={maxSemestres} onAddSemestre={handleAddSemestre} />
           <KanbanArrows
             contentRef={kanbanScrollRef}
-            edges={arrowEdges}
-            enabled={mostrarFlechas}
-            recomputeKey={arrowEdges}
+            edges={arrows.edges}
+            enabled={arrows.edges.length > 0}
+            recomputeKey={arrows.edges}
           />
         </div>
 
