@@ -68,22 +68,3 @@ En Windows, basta con:
 build-standalone.bat
 ```
 Esto compila el frontend, lo embebe en el binario Go (`//go:embed`) y produce `SimulaPUCV.exe` en la raíz.
-
-### Publicar una release
-
-El binario se publica automáticamente al empujar un tag de versión:
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-El workflow [`.github/workflows/release.yml`](.github/workflows/release.yml) compila el `.exe` y lo adjunta a una GitHub Release.
-
----
-
-## Flujo recomendado
-
-1. Iniciar sesión.
-2. Crear o cargar una malla (plantilla, CSV, guardada o en blanco).
-3. Definir variables de simulación y modelo de calificaciones.
-4. Revisar el resumen y ejecutar.
-5. Analizar resultados y exportar ZIP.
