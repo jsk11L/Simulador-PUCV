@@ -33,6 +33,10 @@ export interface GenerarAlumnoParams extends MallaCustomOverride {
   scenario?: string;
   seed?: number;
   until_semestre?: number;
+  // Corte aleatorio por alumno: genera entre min y max semestres de
+  // historial real y deja el resto para proyectar (cohorte).
+  until_semestre_min?: number;
+  until_semestre_max?: number;
   count?: number;
   rut?: string;
   nombre?: string;

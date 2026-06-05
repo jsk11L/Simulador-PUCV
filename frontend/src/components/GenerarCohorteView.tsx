@@ -165,6 +165,11 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
         ...(mallaOverride ?? {}),
         seed: seedBase,
         count,
+        // Cada alumno arranca con 1-4 semestres de historial real; el resto
+        // se proyecta. Así todos los alumnos son proyectables y el resultado
+        // mostrado proviene de la proyección Montecarlo, no de una muestra.
+        until_semestre_min: 1,
+        until_semestre_max: 4,
       });
       const r = response as CohorteResponse;
       const alumnos = r.alumnos ?? [];
@@ -195,8 +200,8 @@ export default function GenerarCohorteView({ apiUrl, mallasGuardadas, standalone
   }, [resultado]);
 
   const stats = useMemo(
-    () => (alumnosConId.length > 0 ? calcularEstadisticas(alumnosConId) : null),
-    [alumnosConId],
+    () => (alumnosConId.length > 0 ? calcularEstadisticas(alumnosConId, prediccionesPorAlumno) : null),
+    [alumnosConId, prediccionesPorAlumno],
   );
 
   // Mapa sigla → prerequisitos para las flechas naranjas del kanban del
@@ -635,6 +640,7 @@ function SinteticoForm({
           value={escenario}
           onSelect={onSelectScenario}
           mallasGuardadas={mallasGuardadas}
+          label="Malla"
           hideFixedScenarios={standalone}
         />
         <div>
@@ -714,16 +720,20 @@ function ResultadosSection({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <Kpi label="Titulados" value={`${((stats.titulados * 100) / count).toFixed(1)}%`} count={stats.titulados} color="emerald" />
-        <Kpi label="Eliminado TAmin" value={`${((stats.elimTA * 100) / count).toFixed(1)}%`} count={stats.elimTA} color="amber" />
-        <Kpi label="Eliminado Opor" value={`${((stats.elimOpor * 100) / count).toFixed(1)}%`} count={stats.elimOpor} color="red" />
-        <Kpi label="Sin cerrar (activos)" value={`${((stats.activos * 100) / count).toFixed(1)}%`} count={stats.activos} color="blue" />
+        <Kpi label="Titulación (prom.)" value={stats.nPred > 0 ? `${(stats.titPct * 100).toFixed(1)}%` : '…'} count={stats.nPred > 0 ? Math.round(stats.titPct * count) : undefined} color="emerald" />
+        <Kpi label="Elim. TAmin (prom.)" value={stats.nPred > 0 ? `${(stats.taPct * 100).toFixed(1)}%` : '…'} count={stats.nPred > 0 ? Math.round(stats.taPct * count) : undefined} color="amber" />
+        <Kpi label="Elim. Opor (prom.)" value={stats.nPred > 0 ? `${(stats.oporPct * 100).toFixed(1)}%` : '…'} count={stats.nPred > 0 ? Math.round(stats.oporPct * count) : undefined} color="red" />
+        <Kpi label="Semestres proy. (prom.)" value={stats.nPred > 0 ? stats.promSemestres.toFixed(1) : '…'} color="blue" />
       </div>
 
       <div className="bg-slate-50 rounded-lg p-4 mb-4 text-sm text-slate-700">
-        <p><strong>Promedio de semestres cursados:</strong> {stats.promSemestres.toFixed(2)}</p>
-        <p><strong>Promedio de créditos aprobados:</strong> {stats.promCreditos.toFixed(1)} / 222</p>
-        <p><strong>Promedio de notas finales:</strong> {stats.promNota.toFixed(2)}</p>
+        <p>
+          Cada alumno arranca con <strong>1–4 semestres de historial real</strong> y el resto es
+          proyección Montecarlo. Los porcentajes son el <strong>promedio de las tasas por alumno</strong>
+          {stats.nPred < count && (
+            <span className="text-slate-500"> · proyectando {stats.nPred}/{count}…</span>
+          )}.
+        </p>
       </div>
 
       <h4 className="text-sm font-bold text-slate-700 mb-2">
@@ -933,45 +943,38 @@ function combinarHistorialYProyeccion(
 // Helpers locales
 // ============================================
 
-function calcularEstadisticas(alumnos: StudentHistory[]) {
-  let titulados = 0;
-  let elimTA = 0;
-  let elimOpor = 0;
-  let activos = 0;
-  let totalSemestres = 0;
-  let totalCreditos = 0;
-  let totalNota = 0;
-  let cantNotas = 0;
+// calcularEstadisticas agrega los resultados de la cohorte a partir de las
+// PROYECCIONES de cada alumno (no de la muestra generada). Cada alumno tiene
+// 1-4 semestres reales y el resto proyectado; sus tasas (titulación / TAmin /
+// oportunidades) se promedian sobre la cohorte. `nPred` indica cuántos
+// alumnos ya tienen proyección lista (la proyección llega asíncrona).
+function calcularEstadisticas(
+  alumnos: Array<{ displayId: string } & StudentHistory>,
+  predicciones: Record<string, IndividualPrediction>,
+) {
+  let nPred = 0;
+  let sumTit = 0;
+  let sumTA = 0;
+  let sumOpor = 0;
+  let sumSemProy = 0;
 
   for (const a of alumnos ?? []) {
-    switch (a.estado) {
-      case 'titulado': titulados++; break;
-      case 'eliminado_tamin': elimTA++; break;
-      case 'eliminado_opor': elimOpor++; break;
-      default: activos++;
-    }
-    const sems = a.semestres ?? [];
-    totalSemestres += sems.length;
-    for (const sem of sems) {
-      for (const c of sem.cursos ?? []) {
-        if (c.estado === 'aprobado') totalCreditos += c.creditos;
-        if (c.nota && c.nota > 0) {
-          totalNota += c.nota;
-          cantNotas++;
-        }
-      }
-    }
+    const p = predicciones[a.displayId];
+    if (!p) continue;
+    nPred++;
+    sumTit += p.tasa_titulacion ?? 0;
+    sumTA += p.tasa_eliminado_tamin ?? 0;
+    sumOpor += p.tasa_eliminado_opor ?? 0;
+    sumSemProy += p.semestres_proyectados ?? 0;
   }
 
-  const n = alumnos.length || 1;
+  const n = nPred || 1;
   return {
-    titulados,
-    elimTA,
-    elimOpor,
-    activos,
-    promSemestres: totalSemestres / n,
-    promCreditos: totalCreditos / n,
-    promNota: cantNotas > 0 ? totalNota / cantNotas : 0,
+    nPred,
+    titPct: sumTit / n,
+    taPct: sumTA / n,
+    oporPct: sumOpor / n,
+    promSemestres: sumSemProy / n,
   };
 }
 

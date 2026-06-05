@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -87,7 +88,13 @@ type GenerarAlumnoInput struct {
 	NCSmax        int                         `json:"ncsmax,omitempty"` // override opcional, 0 = usa el del scenario
 	Seed          int64                       `json:"seed"`
 	UntilSemestre int                         `json:"until_semestre"`
-	Count         int                         `json:"count"`
+	// Corte aleatorio por alumno: si UntilSemestreMax > 0, cada alumno se
+	// genera con un historial "real" de entre UntilSemestreMin (default 1)
+	// y UntilSemestreMax semestres, dejando el resto para proyectar. Usado
+	// por Generar Cohorte para que todos los alumnos sean proyectables.
+	UntilSemestreMin int `json:"until_semestre_min"`
+	UntilSemestreMax int `json:"until_semestre_max"`
+	Count            int `json:"count"`
 	RUT           string                      `json:"rut,omitempty"`
 	Nombre        string                      `json:"nombre,omitempty"`
 }
@@ -134,8 +141,22 @@ func (a *API) GenerarAlumno(c *gin.Context) {
 		baseSeed = 1
 	}
 
+	// Configuración de corte aleatorio por alumno. Determinístico respecto a
+	// la seed para que la cohorte sea reproducible.
+	untilMin := input.UntilSemestreMin
+	if untilMin <= 0 {
+		untilMin = 1
+	}
+	untilMax := input.UntilSemestreMax
+	cortarAleatorio := untilMax >= untilMin && untilMax > 0
+	rngUntil := rand.New(rand.NewSource(baseSeed))
+
 	results := make([]models.StudentHistory, 0, count)
 	for i := 0; i < count; i++ {
+		until := input.UntilSemestre
+		if cortarAleatorio {
+			until = untilMin + rngUntil.Intn(untilMax-untilMin+1)
+		}
 		cfg := engine.GeneratorConfig{
 			Profile:      profile,
 			Asignaturas:  asignaturas,
@@ -153,7 +174,7 @@ func (a *API) GenerarAlumno(c *gin.Context) {
 				VMapM: 0.65, DeltaM: 0.25,
 			},
 			Seed:          baseSeed + int64(i)*1000003,
-			UntilSemestre: input.UntilSemestre,
+			UntilSemestre: until,
 			RUT:           rutFor(input.RUT, profile.Nombre, i),
 			Nombre:        nombreFor(input.Nombre, profile.Nombre, i),
 			Carrera:       "ICE (sintético)",

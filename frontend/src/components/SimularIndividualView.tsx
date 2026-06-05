@@ -444,6 +444,7 @@ function SinteticoForm({
           value={escenario}
           onSelect={onSelectScenario}
           mallasGuardadas={mallasGuardadas}
+          label="Malla"
           hideFixedScenarios={standalone}
         />
         <div>
