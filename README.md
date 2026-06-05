@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/jsk11L/Simulador-PUCV/releases/latest">
-    <img src="https://img.shields.io/github/v/release/jsk11L/Simulador-PUCV?label=descargar%20.exe&style=for-the-badge&logo=windows&color=2563eb&cacheSeconds=1800" alt="Descargar SimulaPUCV.exe">
+    <img src="https://img.shields.io/badge/Descargar-SimulaPUCV.exe-2563eb?style=for-the-badge&logo=windows&logoColor=white" alt="Descargar SimulaPUCV.exe">
   </a>
   &nbsp;
   <a href="https://github.com/jsk11L/Simulador-PUCV/releases/latest">
