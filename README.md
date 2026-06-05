@@ -4,11 +4,11 @@
 
 <p align="center">
   <a href="https://github.com/jsk11L/Simulador-PUCV/releases/latest">
-    <img src="https://img.shields.io/github/v/release/jsk11L/Simulador-PUCV?label=descargar%20.exe&style=for-the-badge&logo=windows&color=2563eb" alt="Descargar SimulaPUCV.exe">
+    <img src="https://img.shields.io/github/v/release/jsk11L/Simulador-PUCV?label=descargar%20.exe&style=for-the-badge&logo=windows&color=2563eb&cacheSeconds=1800" alt="Descargar SimulaPUCV.exe">
   </a>
   &nbsp;
   <a href="https://github.com/jsk11L/Simulador-PUCV/releases/latest">
-    <img src="https://img.shields.io/github/downloads/jsk11L/Simulador-PUCV/total?style=for-the-badge&color=059669" alt="Descargas">
+    <img src="https://img.shields.io/github/downloads/jsk11L/Simulador-PUCV/total?style=for-the-badge&color=059669&cacheSeconds=1800" alt="Descargas">
   </a>
 </p>
 
