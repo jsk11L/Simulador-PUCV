@@ -1,4 +1,12 @@
-import { AlertTriangle, Ban, GraduationCap, XCircle } from 'lucide-react';
+import { useMemo, useRef } from 'react';
+import { AlertTriangle, Ban, GraduationCap, Waypoints, X, XCircle } from 'lucide-react';
+import { ordenarPorSigla } from '../lib/sigla';
+import KanbanArrows, {
+  construirAristas,
+  useArrowSelection,
+  RelacionToggle,
+  type SubjectInstance,
+} from './KanbanArrows';
 import type {
   EstadoSubject,
   EstadoTrayectoria,
@@ -61,6 +69,13 @@ interface Props {
     eliminadoTamin: number;
     eliminadoOpor: number;
   };
+  /**
+   * Mapa sigla → prerequisitos de la malla. Si se pasa, se habilitan las
+   * flechas naranjas de prerequisito (de un ramo hacia los que abre). Sin
+   * él, solo se dibujan las flechas rojas de repetición (reprobado →
+   * reintento), que no necesitan la malla.
+   */
+  reqsPorSigla?: Map<string, string[]> | null;
 }
 
 export default function KanbanAlumno({
@@ -71,6 +86,7 @@ export default function KanbanAlumno({
   proyectadoDesdeIdx,
   probabilidadesPorRamo,
   prediccionTasas,
+  reqsPorSigla,
 }: Props) {
   const semestres = alumno.semestres ?? [];
   const totalCursos = semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
@@ -80,6 +96,45 @@ export default function KanbanAlumno({
   const probPorSigla = probabilidadesPorRamo
     ? new Map(probabilidadesPorRamo.map((r) => [r.sigla, r.prob_aprobar]))
     : null;
+
+  // Columnas con cards ordenadas por sigla y una clave única por instancia
+  // de ramo. La clave la comparten el render (data-kanban-node) y el
+  // cálculo de aristas, para que las flechas conecten exactamente las cards
+  // visibles.
+  const columnas = useMemo(
+    () =>
+      semestres.map((sem, semIdx) => {
+        const proyectado =
+          proyectadoDesdeIdx !== undefined && semIdx >= proyectadoDesdeIdx;
+        const cursosConKey = ordenarPorSigla(sem.cursos ?? [], (c) => c.sigla).map(
+          (curso, i) => ({ curso, key: `${semIdx}:${i}:${curso.sigla}` }),
+        );
+        return { sem, semIdx, proyectado, cursosConKey };
+      }),
+    [semestres, proyectadoDesdeIdx],
+  );
+
+  const instancias = useMemo<SubjectInstance[]>(() => {
+    const out: SubjectInstance[] = [];
+    for (const col of columnas) {
+      for (const { curso, key } of col.cursosConKey) {
+        out.push({ key, sigla: curso.sigla, semIdx: col.semIdx, estado: curso.estado });
+      }
+    }
+    return out;
+  }, [columnas]);
+
+  const allEdges = useMemo(
+    () => construirAristas(instancias, reqsPorSigla ?? null),
+    [instancias, reqsPorSigla],
+  );
+  const prereqEdges = useMemo(() => allEdges.filter((e) => e.kind === 'prereq'), [allEdges]);
+  const repeatEdges = useMemo(() => allEdges.filter((e) => e.kind === 'repeat'), [allEdges]);
+  const arrows = useArrowSelection(prereqEdges, repeatEdges);
+  const hayPrereq = prereqEdges.length > 0;
+  const hayRepeticion = repeatEdges.length > 0;
+
+  const contentRef = useRef<HTMLDivElement>(null);
 
   if (totalCursos === 0) {
     return (
@@ -136,21 +191,87 @@ export default function KanbanAlumno({
           )}
         </div>
       )}
+      {(hayPrereq || hayRepeticion) && (
+        <div className="flex items-center gap-2 mb-3 text-xs flex-wrap">
+          {hayPrereq && (
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Waypoints size={13} className="text-slate-400" />
+              Toca el <Waypoints size={11} className="inline text-slate-400" /> de un ramo para ver sus prerequisitos
+            </span>
+          )}
+          {arrows.activas.map((sigla) => (
+            <span
+              key={sigla}
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-white text-[11px] font-bold font-mono"
+              style={{ backgroundColor: arrows.colorDe(sigla) ?? '#64748b' }}
+            >
+              {sigla}
+              <button
+                type="button"
+                onClick={() => arrows.toggleSigla(sigla)}
+                title={`Quitar ${sigla}`}
+                className="hover:opacity-70"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+          {arrows.activas.length > 0 && (
+            <button
+              type="button"
+              onClick={arrows.limpiar}
+              className="text-slate-500 underline hover:text-slate-700"
+            >
+              Limpiar
+            </button>
+          )}
+          {hayRepeticion && (
+            <button
+              type="button"
+              onClick={() => arrows.setVerRepeticiones((v) => !v)}
+              className={[
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold transition-colors ml-auto',
+                arrows.verRepeticiones
+                  ? 'bg-red-600 text-white border-red-600'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50',
+              ].join(' ')}
+            >
+              <span
+                className="w-5 h-0.5 rounded shrink-0"
+                style={{
+                  backgroundImage: arrows.verRepeticiones
+                    ? 'repeating-linear-gradient(90deg,#fff 0 4px,transparent 4px 7px)'
+                    : 'repeating-linear-gradient(90deg,#dc2626 0 4px,transparent 4px 7px)',
+                }}
+              ></span>
+              {arrows.verRepeticiones ? 'Ocultar reprobados' : 'Ver reprobados'}
+            </button>
+          )}
+        </div>
+      )}
       <div className="overflow-x-auto -mx-1 pb-2">
-        <div className="flex gap-3 px-1 min-w-min">
-          {semestres.map((sem, semIdx) => {
-            const proyectado =
-              proyectadoDesdeIdx !== undefined && semIdx >= proyectadoDesdeIdx;
-            return (
-              <SemesterColumn
-                key={`${sem.periodo}-${semIdx}`}
-                sem={sem}
-                proyectado={proyectado}
-                probPorSigla={proyectado ? probPorSigla : null}
-                onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
-              />
-            );
-          })}
+        <div ref={contentRef} className="relative flex gap-3 px-1 min-w-min">
+          {columnas.map(({ sem, semIdx, proyectado, cursosConKey }) => (
+            <SemesterColumn
+              key={`${sem.periodo}-${semIdx}`}
+              sem={sem}
+              cursosConKey={cursosConKey}
+              proyectado={proyectado}
+              probPorSigla={proyectado ? probPorSigla : null}
+              onClickRamo={onClickRamo ? (c, i) => onClickRamo(sem, c, i) : undefined}
+              arrowSel={{
+                siglasConRelacion: arrows.siglasConRelacion,
+                colorDe: arrows.colorDe,
+                toggleSigla: arrows.toggleSigla,
+              }}
+            />
+          ))}
+          <KanbanArrows
+            contentRef={contentRef}
+            edges={arrows.edges}
+            enabled={arrows.edges.length > 0}
+            recomputeKey={arrows.edges}
+          />
         </div>
       </div>
 
@@ -190,9 +311,11 @@ function EstadoFinalBanner({
     }
   }
 
-  // Para alumnos activos con proyección: el banner refleja el resultado
-  // más probable (mayor tasa) y muestra el porcentaje.
-  if (estadoOriginal === 'activa' && prediccionTasas) {
+  // Si hay proyección disponible, el banner SIEMPRE refleja el resultado
+  // más probable (mayor tasa) y su porcentaje — aunque el alumno haya sido
+  // generado con un cierre concreto (caso cohorte: la muestra generada es
+  // una sola realización; lo que importa es la distribución proyectada).
+  if (prediccionTasas) {
     const t = prediccionTasas;
     const max = Math.max(t.titulacion, t.eliminadoTamin, t.eliminadoOpor);
     if (max <= 0) {
@@ -328,23 +451,43 @@ function EstadoFinalBanner({
   );
 }
 
+// Controles compartidos del overlay de flechas que la columna propaga a
+// cada card (botón de relaciones por ramo).
+type ArrowSel = {
+  siglasConRelacion: Set<string>;
+  colorDe: (sigla: string) => string | null;
+  toggleSigla: (sigla: string) => void;
+};
+
 function SemesterColumn({
   sem,
+  cursosConKey,
   proyectado,
   probPorSigla,
   onClickRamo,
+  arrowSel,
 }: {
   sem: SemesterRecord;
+  cursosConKey: Array<{ curso: SubjectRecord; key: string }>;
   proyectado?: boolean;
   probPorSigla?: Map<string, number> | null;
   onClickRamo?: (curso: SubjectRecord, idx: number) => void;
+  arrowSel?: ArrowSel;
 }) {
-  const cursos = sem.cursos ?? [];
+  // Las cards ya vienen ordenadas por sigla y con su clave de instancia
+  // desde el padre (compartida con el overlay de flechas).
+  const cursos = cursosConKey.map((x) => x.curso);
   const creditosAprob = cursos
     .filter((c) => c.estado === 'aprobado')
     .reduce((sum, c) => sum + c.creditos, 0);
   const creditosInscritos = cursos.reduce((sum, c) => sum + c.creditos, 0);
-  const ratio = creditosInscritos > 0 ? (creditosAprob / creditosInscritos) : 0;
+  // El color del ratio se basa SOLO en ramos ya evaluados (aprobado /
+  // reprobado). Un semestre 100% "en curso" no debe pintarse rojo por no
+  // tener aprobados todavía. null = sin evaluar aún → color neutro.
+  const creditosEvaluados = cursos
+    .filter((c) => c.estado === 'aprobado' || c.estado === 'reprobado')
+    .reduce((sum, c) => sum + c.creditos, 0);
+  const ratio = creditosEvaluados > 0 ? creditosAprob / creditosEvaluados : null;
 
   return (
     <div
@@ -376,7 +519,7 @@ function SemesterColumn({
           {creditosInscritos > 0 && (
             <>
               {' · '}
-              <span className={ratio === 1 ? 'text-emerald-600 font-semibold' : ratio < 0.5 ? 'text-red-600' : ''}>
+              <span className={ratio === null ? '' : ratio === 1 ? 'text-emerald-600 font-semibold' : ratio < 0.5 ? 'text-red-600' : ''}>
                 {creditosAprob}/{creditosInscritos} cr
               </span>
             </>
@@ -385,12 +528,14 @@ function SemesterColumn({
       </div>
 
       <div className="space-y-2">
-        {cursos.map((c, idx) => (
+        {cursosConKey.map(({ curso: c, key }, idx) => (
           <CursoCard
-            key={`${c.sigla}-${idx}`}
+            key={key}
+            nodeKey={key}
             curso={c}
             probAprobar={probPorSigla?.get(c.sigla)}
             onClick={onClickRamo ? () => onClickRamo(c, idx) : undefined}
+            arrowSel={arrowSel}
           />
         ))}
       </div>
@@ -400,22 +545,32 @@ function SemesterColumn({
 
 function CursoCard({
   curso,
+  nodeKey,
   probAprobar,
   onClick,
+  arrowSel,
 }: {
   curso: SubjectRecord;
+  // Clave de instancia para anclar las flechas del overlay.
+  nodeKey: string;
   // Si se pasa, la card se renderiza como mapa de calor: color y label
   // derivados del % de aprobación en lugar del estado binario. Se aplica
   // solo a semestres proyectados (KanbanAlumno controla la propagación).
   probAprobar?: number;
   onClick?: () => void;
+  arrowSel?: ArrowSel;
 }) {
   const heat = typeof probAprobar === 'number' ? heatmapStyles(probAprobar) : null;
   const styles = heat ?? estadoStyles(curso.estado);
   const Tag = onClick ? 'button' : 'div';
+  // El botón de relaciones solo aparece si el ramo participa en alguna
+  // arista de prerequisito (tiene reqs o abre otros ramos).
+  const tieneRelacion = arrowSel?.siglasConRelacion.has(curso.sigla) ?? false;
+  const colorRel = arrowSel?.colorDe(curso.sigla) ?? null;
 
   return (
     <Tag
+      data-kanban-node={nodeKey}
       onClick={onClick}
       type={onClick ? 'button' : undefined}
       className={[
@@ -427,8 +582,17 @@ function CursoCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className={`font-mono font-bold text-xs ${styles.text}`}>{curso.sigla}</span>
-        <span className="text-[10px] font-semibold text-slate-500 shrink-0">
-          {curso.creditos} cr
+        <span className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] font-semibold text-slate-500">
+            {curso.creditos} cr
+          </span>
+          {tieneRelacion && arrowSel && (
+            <RelacionToggle
+              active={colorRel !== null}
+              color={colorRel}
+              onClick={() => arrowSel.toggleSigla(curso.sigla)}
+            />
+          )}
         </span>
       </div>
       {heat ? (
@@ -539,6 +703,15 @@ function estadoStyles(estado: EstadoSubject): {
         text: 'text-slate-700',
         tag: 'text-slate-500',
       };
+    default:
+      // Estado fuera del union (p.ej. JSON importado con datos crudos):
+      // estilo neutro en lugar de devolver undefined y reventar.
+      return {
+        bg: 'bg-slate-100',
+        border: 'border-slate-300',
+        text: 'text-slate-700',
+        tag: 'text-slate-500',
+      };
   }
 }
 
@@ -552,5 +725,7 @@ function estadoLabel(estado: EstadoSubject): string {
       return 'En curso';
     case 'abandonado':
       return 'Abandonado';
+    default:
+      return String(estado || 'Desconocido');
   }
 }

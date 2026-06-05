@@ -1,0 +1,73 @@
+name: Release SimulaPUCV.exe
+
+# Compila el binario portable de Windows y lo publica como asset de una
+# GitHub Release. Se dispara al empujar un tag `vX.Y.Z` (o manualmente).
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# El resultado queda descargable en:
+#   https://github.com/jsk11L/Simulador-PUCV/releases/latest
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ''
+        run: |
+          npm ci
+          npm run build
+
+      - name: Embed frontend into backend
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force backend/frontend_dist -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force backend/frontend_dist | Out-Null
+          Copy-Item -Recurse -Force frontend/dist/* backend/frontend_dist/
+
+      - name: Build SimulaPUCV.exe
+        working-directory: backend
+        run: go build -ldflags="-s -w -H=windowsgui" -o ../SimulaPUCV.exe .
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SimulaPUCV ${{ github.ref_name }}
+          files: SimulaPUCV.exe
+          body: |
+            ## SimulaPUCV ${{ github.ref_name }}
+
+            Aplicación portable para Windows. **No requiere instalación.**
+
+            ### Cómo usar
+            1. Descargue `SimulaPUCV.exe` aquí abajo.
+            2. Haga doble clic. Se abrirá automáticamente en su navegador (`http://localhost:8080`).
+            3. Sus datos quedan en `%USERPROFILE%\.simulapucv\`.
+
+            > Windows SmartScreen puede pedir confirmación la primera vez
+            > (binario sin firmar): _Más información → Ejecutar de todas formas_.

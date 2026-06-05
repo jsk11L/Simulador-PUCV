@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Dices, Loader2, Play, RotateCcw, SlidersHorizontal, TrendingDown, TrendingUp } from 'lucide-react';
 import useStudentApi, { type BacktestCohorteResponse, type MallaCustomOverride } from '../hooks/useStudentApi';
-import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
+import ScenarioSelector, { type ScenarioSelection, buildProgramacion } from './ScenarioSelector';
+import HelpTip from './HelpTip';
 import type { MallaGuardada, ModifierWeights, StudentProfile } from '../types';
 
 // Pesos por defecto (espejo de DefaultWeights en backend)
@@ -30,11 +31,14 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 
   const [perfiles, setPerfiles] = useState<StudentProfile[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>('promedio');
-  const [escenario, setEscenario] = useState<string>('caso_actual');
+  // Calibración trabaja SOLO sobre mallas guardadas del usuario (no los
+  // escenarios fijos del paper). Arranca vacío y auto-selecciona la primera
+  // malla disponible.
+  const [escenario, setEscenario] = useState<string>('');
   const [mallaOverride, setMallaOverride] = useState<MallaCustomOverride | null>(null);
   const [count, setCount] = useState<number>(20);
   const [iteraciones, setIteraciones] = useState<number>(100);
-  const [seed, setSeed] = useState<number>(20260516);
+  const [seed, setSeed] = useState<number>(() => generarSeedAleatoria());
 
   const [weights, setWeights] = useState<ModifierWeights>(DEFAULT_WEIGHTS);
   const [resultado, setResultado] = useState<BacktestCohorteResponse | null>(null);
@@ -48,6 +52,20 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-seleccionar la primera malla guardada apenas estén disponibles
+  // (no usamos escenarios del paper en calibración).
+  useEffect(() => {
+    if (mallasGuardadas.length === 0) return;
+    if (escenario.startsWith('__malla__')) return;
+    const m = mallasGuardadas[0];
+    setEscenario(`__malla__${m.id}`);
+    setMallaOverride({
+      asignaturas: m.asignaturas,
+      programacion: buildProgramacion(m.asignaturas),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mallasGuardadas]);
 
   const handleSelectScenario = (s: ScenarioSelection) => {
     setEscenario(s.value);
@@ -110,6 +128,7 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                 <h3 className="font-bold text-slate-800 flex items-center gap-2">
                   <SlidersHorizontal size={18} className="text-amber-500" />
                   Pesos del Modelo
+                  <HelpTip side="bottom" text="Los pesos δ controlan cuánto influyen ciertos factores del alumno (historial, prerrequisitos, sobrecarga) en su probabilidad de aprobar cada ramo. Con todos en 0, el motor ignora esos factores (modelo base). Suba un peso para darle más influencia y mida si mejora la predicción." />
                 </h3>
                 <button
                   onClick={handleReset}
@@ -123,18 +142,21 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                 <WeightControl
                   label="W_hist"
                   description="Peso del modificador por esfuerzo histórico (ratio créditos aprobados / inscritos)"
+                  help="Premia a quien viene aprobando casi todo lo que inscribe y penaliza a quien arrastra reprobaciones. Más peso = el rendimiento pasado pesa más en la predicción futura."
                   value={weights.w_hist}
                   onChange={(v) => setWeights({ ...weights, w_hist: v })}
                 />
                 <WeightControl
                   label="W_prereq"
                   description="Peso del modificador por nota promedio de prerrequisitos aprobados"
+                  help="Usa las notas de los prerrequisitos como señal: quien aprobó los ramos previos con buenas notas tiene más probabilidad de aprobar el que los requiere."
                   value={weights.w_prereq}
                   onChange={(v) => setWeights({ ...weights, w_prereq: v })}
                 />
                 <WeightControl
                   label="W_stress"
                   description="Peso del modificador por sobrecarga académica (carga actual vs histórica)"
+                  help="Penaliza inscribir muchos más créditos que el promedio histórico del alumno (sobrecarga). Más peso = la sobrecarga reduce más la probabilidad de aprobar."
                   value={weights.w_stress}
                   onChange={(v) => setWeights({ ...weights, w_stress: v })}
                 />
@@ -142,7 +164,10 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 
               <div className="mt-5 pt-5 border-t border-slate-200 grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Perfil de cohorte</label>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                    Perfil de cohorte
+                    <HelpTip side="bottom" text="Preset de 3 rasgos en [0,1] de la cohorte sintética que se usa para evaluar los pesos: Esfuerzo (sube la probabilidad de aprobar), Disciplina (reduce la variabilidad de notas) y Tolerancia (cuánta carga inscribe). Van de 'esforzado_top' a 'en_problemas'; 'promedio' es el centro." />
+                  </label>
                   <select
                     value={perfilSeleccionado}
                     onChange={(e) => setPerfilSeleccionado(e.target.value)}
@@ -159,6 +184,8 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
                   value={escenario}
                   onSelect={handleSelectScenario}
                   mallasGuardadas={mallasGuardadas}
+                  label="Malla"
+                  hideFixedScenarios
                 />
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1 block">
@@ -221,7 +248,10 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
           {/* ============================= */}
           <div>
             <section className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm sticky top-4">
-              <h3 className="font-bold text-slate-800 mb-4">Métricas</h3>
+              <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-1.5">
+                Métricas
+                <HelpTip side="bottom" text="Calidad de las predicciones vs lo que realmente pasó en la cohorte. Brier y Log-loss: menor es mejor (qué tan calibradas están las probabilidades). Accuracy: mayor es mejor (aciertos). Se comparan contra el baseline con todos los pesos en 0." />
+              </h3>
 
               {!resultado ? (
                 <div className="text-center text-slate-400 text-sm py-8">
@@ -280,11 +310,13 @@ export default function CalibracionView({ apiUrl, mallasGuardadas }: Props) {
 function WeightControl({
   label,
   description,
+  help,
   value,
   onChange,
 }: {
   label: string;
   description: string;
+  help?: string;
   value: number;
   onChange: (v: number) => void;
 }) {
@@ -300,7 +332,10 @@ function WeightControl({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-sm font-bold text-slate-800 font-mono">{label}</label>
+        <label className="text-sm font-bold text-slate-800 font-mono flex items-center gap-1.5">
+          {label}
+          {help && <HelpTip side="bottom" text={help} />}
+        </label>
         <input
           type="number"
           min={0}

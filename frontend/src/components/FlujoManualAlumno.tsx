@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, FileUp, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Activity, FileUp, Loader2, Plus, Trash2, Waypoints, X } from 'lucide-react';
+import KanbanArrows, {
+  construirAristas,
+  useArrowSelection,
+  RelacionToggle,
+  type SubjectInstance,
+} from './KanbanArrows';
 import useStudentApi, { type MallaCustomOverride } from '../hooks/useStudentApi';
 import ScenarioSelector, { type ScenarioSelection } from './ScenarioSelector';
 import { parseImported } from '../lib/studentImport';
+import { ordenarPorSigla } from '../lib/sigla';
 import type {
   Asignatura,
   EstadoSubject,
@@ -212,10 +219,31 @@ export default function FlujoManualAlumno({
       if (!map.has(sem)) map.set(sem, []);
       map.get(sem)!.push(a);
     }
-    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+    // Orden natural por sigla dentro de cada semestre y columnas por nº de semestre.
+    return Array.from(map.entries())
+      .map(([sem, ramos]) => [sem, ordenarPorSigla(ramos, (r) => r.id)] as [number, Asignatura[]])
+      .sort((a, b) => a[0] - b[0]);
   }, [asignaturas]);
 
   const totalCursados = alumno.semestres.reduce((sum, s) => sum + (s.cursos?.length ?? 0), 0);
+
+  // Flechas de prerequisito sobre el kanban de la malla: cada ramo se activa
+  // con su botón y pinta sus relaciones con un color de la paleta.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const reqsPorSigla = useMemo(
+    () => new Map(asignaturas.map((a) => [a.id, a.reqs ?? []])),
+    [asignaturas],
+  );
+  const arrowEdges = useMemo(() => {
+    const instancias: SubjectInstance[] = asignaturas.map((a) => ({
+      key: `${a.semestre}:${a.id}`,
+      sigla: a.id,
+      semIdx: a.semestre,
+    }));
+    return construirAristas(instancias, reqsPorSigla);
+  }, [asignaturas, reqsPorSigla]);
+  const arrows = useArrowSelection(arrowEdges, []);
+  const hayFlechas = arrowEdges.length > 0;
 
   return (
     <div className="space-y-4">
@@ -332,13 +360,48 @@ export default function FlujoManualAlumno({
           </div>
         </div>
 
+        {hayFlechas && !loadingMalla && (
+          <div className="flex items-center gap-2 mb-2 text-xs flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Waypoints size={13} className="text-slate-400" />
+              Toca el <Waypoints size={11} className="inline text-slate-400" /> de un ramo para ver sus prerequisitos
+            </span>
+            {arrows.activas.map((sigla) => (
+              <span
+                key={sigla}
+                className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-white text-[11px] font-bold font-mono"
+                style={{ backgroundColor: arrows.colorDe(sigla) ?? '#64748b' }}
+              >
+                {sigla}
+                <button
+                  type="button"
+                  onClick={() => arrows.toggleSigla(sigla)}
+                  title={`Quitar ${sigla}`}
+                  className="hover:opacity-70"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            {arrows.activas.length > 0 && (
+              <button
+                type="button"
+                onClick={arrows.limpiar}
+                className="text-slate-500 underline hover:text-slate-700"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+        )}
+
         {loadingMalla ? (
           <div className="flex items-center gap-2 text-slate-500 text-sm py-8 justify-center">
             <Loader2 size={16} className="animate-spin" /> Cargando malla...
           </div>
         ) : (
           <div className="overflow-x-auto -mx-1 pb-2">
-            <div className="flex gap-3 px-1 min-w-min">
+            <div ref={contentRef} className="relative flex gap-3 px-1 min-w-min">
               {asignaturasPorSemestre.map(([semNominal, ramos]) => (
                 <MallaSemColumn
                   key={semNominal}
@@ -346,8 +409,19 @@ export default function FlujoManualAlumno({
                   ramos={ramos}
                   alumno={alumno}
                   onClickRamo={handleClickRamoMalla}
+                  arrowSel={{
+                    siglasConRelacion: arrows.siglasConRelacion,
+                    colorDe: arrows.colorDe,
+                    toggleSigla: arrows.toggleSigla,
+                  }}
                 />
               ))}
+              <KanbanArrows
+                contentRef={contentRef}
+                edges={arrows.edges}
+                enabled={arrows.edges.length > 0}
+                recomputeKey={arrows.edges}
+              />
             </div>
           </div>
         )}
@@ -374,11 +448,17 @@ function MallaSemColumn({
   ramos,
   alumno,
   onClickRamo,
+  arrowSel,
 }: {
   semNominal: number;
   ramos: Asignatura[];
   alumno: StudentHistory;
   onClickRamo: (asig: Asignatura) => void;
+  arrowSel?: {
+    siglasConRelacion: Set<string>;
+    colorDe: (sigla: string) => string | null;
+    toggleSigla: (sigla: string) => void;
+  };
 }) {
   const indexByRamo = useMemo(() => {
     const map = new Map<string, SubjectRecord>();
@@ -403,6 +483,7 @@ function MallaSemColumn({
           return (
             <button
               key={r.id}
+              data-kanban-node={`${semNominal}:${r.id}`}
               type="button"
               onClick={() => onClickRamo(r)}
               className={[
@@ -412,7 +493,16 @@ function MallaSemColumn({
             >
               <div className="flex items-start justify-between gap-2">
                 <span className="font-mono font-bold">{r.id}</span>
-                <span className="text-[10px] font-semibold opacity-70 shrink-0">{r.cred} cr</span>
+                <span className="flex items-center gap-1 shrink-0">
+                  <span className="text-[10px] font-semibold opacity-70">{r.cred} cr</span>
+                  {arrowSel?.siglasConRelacion.has(r.id) && (
+                    <RelacionToggle
+                      active={arrowSel.colorDe(r.id) !== null}
+                      color={arrowSel.colorDe(r.id)}
+                      onClick={() => arrowSel.toggleSigla(r.id)}
+                    />
+                  )}
+                </span>
               </div>
               {cursado ? (
                 <div className="flex items-baseline justify-between mt-1">
